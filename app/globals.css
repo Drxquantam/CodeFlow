@@ -1,0 +1,131 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: #050505;
+  color: #f4f4f5;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+button,
+textarea,
+select {
+  font: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0a0b;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2e3033;
+  border: 2px solid #0a0a0b;
+  border-radius: 999px;
+}
+
+.monaco-editor .current-line {
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+.analysis-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #333 #0a0a0b;
+}
+
+.review-card-3d {
+  transform-style: preserve-3d;
+  animation: review-card-float 5.5s ease-in-out infinite;
+}
+
+.review-card-3d:hover {
+  animation-play-state: paused;
+  transform: perspective(900px) rotateX(3deg) rotateY(-4deg) translateY(-4px);
+}
+
+.review-typewriter-line {
+  display: block;
+  width: 0;
+  max-width: max-content;
+  overflow: hidden;
+  white-space: pre;
+  border-right: 0 solid transparent;
+  animation:
+    review-line-type 760ms steps(var(--line-chars), end) forwards,
+    review-line-caret 850ms steps(1) 0s 2;
+  animation-delay: var(--line-delay), var(--line-delay);
+}
+
+.review-typewriter-line:last-child {
+  border-right-width: 2px;
+  animation:
+    review-line-type 760ms steps(var(--line-chars), end) forwards,
+    review-caret 850ms steps(1) infinite;
+  animation-delay: var(--line-delay), calc(var(--line-delay) + 760ms);
+}
+
+@keyframes review-card-float {
+  0%,
+  100% {
+    transform: perspective(900px) rotateX(0deg) rotateY(0deg) translateY(0);
+  }
+
+  50% {
+    transform: perspective(900px) rotateX(2deg) rotateY(-2deg) translateY(-5px);
+  }
+}
+
+@keyframes review-line-type {
+  from {
+    width: 0;
+  }
+
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes review-line-caret {
+  0%,
+  45% {
+    border-right-width: 2px;
+    border-color: #22c55e;
+  }
+
+  46%,
+  100% {
+    border-right-width: 2px;
+    border-color: transparent;
+  }
+}
+
+@keyframes review-caret {
+  0%,
+  45% {
+    border-color: #22c55e;
+  }
+
+  46%,
+  100% {
+    border-color: transparent;
+  }
+}
