@@ -441,11 +441,9 @@ function buildCompactWeightedDagLayout(trace: EnhancedTrace, source: string) {
   orderedRanks.forEach((rank) => {
     const nodes = groups.get(rank) ?? [];
     nodes.sort((a, b) => {
-      const aParents = incoming.get(a) ?? [];
-      const bParents = incoming.get(b) ?? [];
-      const aParentRank = average(aParents.map((parent) => ranks.get(parent) ?? 0));
-      const bParentRank = average(bParents.map((parent) => ranks.get(parent) ?? 0));
-      if (aParentRank !== bParentRank) return aParentRank - bParentRank;
+      const aOrder = firstIncomingOrder(a, trace.edges);
+      const bOrder = firstIncomingOrder(b, trace.edges);
+      if (aOrder !== bOrder) return aOrder - bOrder;
       return naturalCompare(a, b);
     });
   });
@@ -457,9 +455,17 @@ function buildCompactWeightedDagLayout(trace: EnhancedTrace, source: string) {
     const startY = 260 - ((nodes.length - 1) * yGap) / 2;
 
     nodes.forEach((node, nodeIndex) => {
+      const outgoingCount = (outgoing.get(node) ?? []).length;
+      const parentYs = (incoming.get(node) ?? [])
+        .map((parent) => layout.get(parent)?.y)
+        .filter((y): y is number => y != null);
+      const preferredSinkY = parentYs.length
+        ? Math.max(130, Math.min(390, average(parentYs)))
+        : 260;
+
       layout.set(node, {
         x: 70 + (orderedRanks.length === 1 ? 390 : rankIndex * xGap),
-        y: nodes.length === 1 ? 260 : startY + nodeIndex * yGap,
+        y: outgoingCount === 0 && nodes.length === 1 ? preferredSinkY : nodes.length === 1 ? 260 : startY + nodeIndex * yGap,
       });
     });
   });
@@ -480,54 +486,14 @@ function computeSourceRanks(
 
   while (queue.length) {
     const node = queue.shift()!;
+    const currentRank = ranks.get(node) ?? 0;
     (outgoing.get(node) ?? []).forEach((next) => {
       if (!reachable.has(next)) {
         reachable.add(next);
+        ranks.set(next, currentRank + 1);
         queue.push(next);
       }
     });
-  }
-
-  const indegree = new Map(nodes.map((node) => [node, 0]));
-  trace.edges.forEach((edge) => {
-    if (reachable.has(edge.from) && reachable.has(edge.to)) {
-      indegree.set(edge.to, (indegree.get(edge.to) ?? 0) + 1);
-    }
-  });
-
-  const topoQueue = nodes.filter((node) => reachable.has(node) && (indegree.get(node) ?? 0) === 0);
-  const topo: string[] = [];
-  while (topoQueue.length) {
-    const node = topoQueue.shift()!;
-    topo.push(node);
-    (outgoing.get(node) ?? []).forEach((next) => {
-      if (!reachable.has(next)) return;
-      indegree.set(next, (indegree.get(next) ?? 0) - 1);
-      if ((indegree.get(next) ?? 0) === 0) topoQueue.push(next);
-    });
-  }
-
-  if (topo.length === reachable.size) {
-    topo.forEach((node) => {
-      const currentRank = ranks.get(node) ?? 0;
-      (outgoing.get(node) ?? []).forEach((next) => {
-        if (reachable.has(next)) {
-          ranks.set(next, Math.max(ranks.get(next) ?? 0, currentRank + 1));
-        }
-      });
-    });
-  } else {
-    const bfs = [source];
-    while (bfs.length) {
-      const node = bfs.shift()!;
-      const currentRank = ranks.get(node) ?? 0;
-      (outgoing.get(node) ?? []).forEach((next) => {
-        if (!ranks.has(next)) {
-          ranks.set(next, currentRank + 1);
-          bfs.push(next);
-        }
-      });
-    }
   }
 
   const maxReachableRank = Math.max(...[...ranks.values()], 0);
@@ -537,6 +503,16 @@ function computeSourceRanks(
       .map((parent) => ranks.get(parent))
       .filter((rank): rank is number => rank != null);
     ranks.set(node, parentRanks.length ? Math.max(...parentRanks) + 1 : maxReachableRank + 1);
+  });
+
+  nodes.forEach((node) => {
+    if (!reachable.has(node) || (outgoing.get(node) ?? []).length > 0) return;
+    const parentRanks = (incoming.get(node) ?? [])
+      .map((parent) => ranks.get(parent))
+      .filter((rank): rank is number => rank != null);
+    if (parentRanks.length > 1) {
+      ranks.set(node, Math.max(...parentRanks) + 1);
+    }
   });
 
   return ranks;
@@ -555,6 +531,11 @@ function naturalCompare(a: string, b: string) {
   }
 
   return a.localeCompare(b);
+}
+
+function firstIncomingOrder(node: string, edges: EnhancedTrace["edges"]) {
+  const index = edges.findIndex((edge) => edge.to === node);
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
 }
 
 function isAcyclic(trace: EnhancedTrace) {
