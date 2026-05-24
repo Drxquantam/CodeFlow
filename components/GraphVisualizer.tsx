@@ -364,6 +364,9 @@ function buildDirectedGraphLayout(trace: EnhancedTrace) {
 }
 
 function buildSourceLayeredGraphLayout(trace: EnhancedTrace, source: string) {
+  const compact = buildCompactWeightedDagLayout(trace, source);
+  if (compact) return compact;
+
   const layout = new Map<string, { x: number; y: number }>();
   const outgoing = new Map(trace.nodes.map((node) => [node.id, [] as string[]]));
 
@@ -411,6 +414,78 @@ function buildSourceLayeredGraphLayout(trace: EnhancedTrace, source: string) {
   });
 
   return layout;
+}
+
+function buildCompactWeightedDagLayout(trace: EnhancedTrace, source: string) {
+  if (trace.nodes.length > 8 || !trace.edges.every((edge) => edge.label != null)) {
+    return null;
+  }
+
+  const layout = new Map<string, { x: number; y: number }>();
+  const outgoing = new Map(trace.nodes.map((node) => [node.id, [] as string[]]));
+  const incomingCount = new Map(trace.nodes.map((node) => [node.id, 0]));
+
+  trace.edges.forEach((edge) => {
+    outgoing.set(edge.from, [...(outgoing.get(edge.from) ?? []), edge.to]);
+    incomingCount.set(edge.to, (incomingCount.get(edge.to) ?? 0) + 1);
+  });
+
+  const firstPath = [source];
+  const used = new Set(firstPath);
+  while (firstPath.length < trace.nodes.length) {
+    const current = firstPath[firstPath.length - 1];
+    const next = (outgoing.get(current) ?? []).find((node) => !used.has(node));
+    if (!next) break;
+    firstPath.push(next);
+    used.add(next);
+  }
+
+  const leftX = 80;
+  const rowGap = 120;
+  firstPath.forEach((node, index) => {
+    layout.set(node, { x: leftX + Math.floor(index / 3) * 270, y: 70 + (index % 3) * rowGap });
+  });
+
+  trace.nodes.forEach((node) => {
+    if (layout.has(node.id)) return;
+
+    const parents = trace.edges.filter((edge) => edge.to === node.id).map((edge) => edge.from);
+    const parentPoints = parents.map((parent) => layout.get(parent)).filter(Boolean) as Array<{
+      x: number;
+      y: number;
+    }>;
+    const avgX = parentPoints.length
+      ? parentPoints.reduce((sum, point) => sum + point.x, 0) / parentPoints.length
+      : 220;
+    const avgY = parentPoints.length
+      ? parentPoints.reduce((sum, point) => sum + point.y, 0) / parentPoints.length
+      : 180;
+    const sharedParents = Math.max(incomingCount.get(node.id) ?? 1, 1);
+
+    layout.set(node.id, {
+      x: Math.min(820, avgX + 250),
+      y: Math.max(70, Math.min(390, avgY - 60 + sharedParents * 28)),
+    });
+  });
+
+  spreadOverlaps(layout);
+  return layout;
+}
+
+function spreadOverlaps(layout: Map<string, { x: number; y: number }>) {
+  const points = [...layout.entries()];
+  for (let pass = 0; pass < 5; pass += 1) {
+    for (let i = 0; i < points.length; i += 1) {
+      for (let j = i + 1; j < points.length; j += 1) {
+        const [, a] = points[i];
+        const [, b] = points[j];
+        if (Math.abs(a.x - b.x) < 120 && Math.abs(a.y - b.y) < 80) {
+          b.y = Math.min(430, b.y + 80);
+          b.x = Math.min(840, b.x + 40);
+        }
+      }
+    }
+  }
 }
 
 function isAcyclic(trace: EnhancedTrace) {
