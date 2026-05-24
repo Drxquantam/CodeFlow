@@ -312,6 +312,10 @@ function buildLayout(trace: EnhancedTrace) {
     return buildDagLayout(trace);
   }
 
+  if (trace.visualType === "graph") {
+    return buildCircleLayout(trace);
+  }
+
   const layout = new Map<string, { x: number; y: number }>();
   const count = Math.max(trace.nodes.length, 1);
   const columns = Math.min(4, Math.ceil(Math.sqrt(count)));
@@ -327,6 +331,23 @@ function buildLayout(trace: EnhancedTrace) {
     layout.set(node.id, {
       x: 50 + (columns === 1 ? width / 2 : column * xGap),
       y: 50 + (rows === 1 ? height / 2 : row * yGap),
+    });
+  });
+
+  return layout;
+}
+
+function buildCircleLayout(trace: EnhancedTrace) {
+  const layout = new Map<string, { x: number; y: number }>();
+  const centerX = 460;
+  const centerY = 260;
+  const radius = Math.min(190, 70 + trace.nodes.length * 18);
+
+  trace.nodes.forEach((node, index) => {
+    const angle = (Math.PI * 2 * index) / Math.max(trace.nodes.length, 1) - Math.PI / 2;
+    layout.set(node.id, {
+      x: centerX + Math.cos(angle) * radius,
+      y: centerY + Math.sin(angle) * radius,
     });
   });
 
@@ -422,10 +443,10 @@ function normalizeTraceForVisualization(
     const id = String(index + 1);
     return { id, label: id, group: "input" };
   });
-  const edges = parsed.edges.map(([from, to]) => ({
+  const edges = parsed.edges.map(([from, to, weight]) => ({
     from: String(from),
     to: String(to),
-    label: `${from}-${to}`,
+    label: weight == null ? `${from}-${to}` : String(weight),
   }));
   const edgeSet = new Set(edges.flatMap((edge) => [`${edge.from}->${edge.to}`, `${edge.to}->${edge.from}`]));
 
@@ -959,20 +980,24 @@ function withIndegree(
 }
 
 function parseEdgeList(stdin: string) {
-  const nums = stdin.match(/-?\d+/g)?.map(Number) ?? [];
-  if (nums.length < 2) return null;
+  const lines = stdin.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const header = lines[0]?.match(/-?\d+/g)?.map(Number) ?? [];
+  if (header.length < 2) return null;
 
-  const [n, m] = nums;
-  const edgeNums = nums.slice(2);
+  const [n, m] = header;
   if (!Number.isInteger(n) || !Number.isInteger(m) || n <= 0 || m <= 0) return null;
-  if (edgeNums.length < m * 2) return null;
 
-  const edges: Array<[number, number]> = [];
-  for (let index = 0; index < m * 2; index += 2) {
-    const from = edgeNums[index];
-    const to = edgeNums[index + 1];
-    if (from >= 1 && from <= n && to >= 1 && to <= n) {
-      edges.push([from, to]);
+  const edges: Array<[number, number, number?]> = [];
+  for (const line of lines.slice(1, 1 + m)) {
+    const values = line.match(/-?\d+/g)?.map(Number) ?? [];
+    if (values.length < 2) continue;
+
+    const [from, to, weight] = values;
+    const zeroBased = from >= 0 && from < n && to >= 0 && to < n;
+    const oneBased = from >= 1 && from <= n && to >= 1 && to <= n;
+
+    if (zeroBased || oneBased) {
+      edges.push([from, to, weight]);
     }
   }
 

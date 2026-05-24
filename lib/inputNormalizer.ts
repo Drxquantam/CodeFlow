@@ -2,7 +2,11 @@ export function normalizeInputForVisualizer(rawInput: string) {
   const input = rawInput.trim();
   if (!input) return "";
 
-  return normalizeAlienDictionaryInput(input) ?? normalizeLinkedListInput(input) ?? normalizeInlineArrayInput(input) ?? input;
+  return normalizeWeightedEdgeInput(input)
+    ?? normalizeAlienDictionaryInput(input)
+    ?? normalizeLinkedListInput(input)
+    ?? normalizeInlineArrayInput(input)
+    ?? input;
 }
 
 export function canNormalizeInput(rawInput: string) {
@@ -50,6 +54,25 @@ function normalizeInlineArrayInput(input: string) {
   return [String(values.length), values.join(" "), target == null ? "" : String(target)]
     .filter(Boolean)
     .join("\n");
+}
+
+function normalizeWeightedEdgeInput(input: string) {
+  const compact = input.replace(/\s+/g, " ");
+  const v = readNamedNumber(compact, "V");
+  const source = readNamedNumber(compact, "S");
+  const edgeMatch = compact.match(/Edges?\s*=\s*(\[[\s\S]+\])/i);
+
+  if (v == null || !edgeMatch) return null;
+
+  const triples = [...edgeMatch[1].matchAll(/\[\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*\]/g)]
+    .map((match) => [Number(match[1]), Number(match[2]), Number(match[3])]);
+
+  if (!triples.length) return null;
+
+  return [
+    `${v} ${triples.length}${source == null ? "" : ` ${source}`}`,
+    ...triples.map((edge) => edge.join(" ")),
+  ].join("\n");
 }
 
 function normalizeLinkedListInput(input: string) {
