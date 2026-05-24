@@ -597,12 +597,16 @@ function normalizeTraceForVisualization(
     edges,
     meta: { source: parsed.source == null ? undefined : String(parsed.source) },
     steps: trace.steps.map((step) => {
-      const mentionedEdge = extractEdgeFromText(`${step.action} ${step.note}`);
+      const stepText = `${step.action} ${step.note}`;
+      const mentionedEdge = extractEdgeFromText(stepText);
+      const mentionedVertices = extractVerticesFromText(stepText, nodes.map((node) => node.id));
       const activeEdges = mentionedEdge
         ? [`${mentionedEdge[0]}->${mentionedEdge[1]}`].filter((edge) => edgeSet.has(edge))
         : step.activeEdges?.filter((edge) => edgeSet.has(edge)) ?? [];
       const activeNodes = mentionedEdge
         ? [String(mentionedEdge[0]), String(mentionedEdge[1])]
+        : mentionedVertices.length
+          ? mentionedVertices
         : step.activeNodes?.filter((node) => nodes.some((item) => item.id === node)) ?? [];
 
       return {
@@ -1151,6 +1155,15 @@ function extractEdgeFromText(text: string): [number, number] | null {
   if (!match) return null;
 
   return [Number(match[1]), Number(match[2])];
+}
+
+function extractVerticesFromText(text: string, nodeIds: string[]) {
+  const nodeIdSet = new Set(nodeIds);
+  const match = text.match(/\b(?:vertex|vertices|node|nodes)\s+([A-Za-z0-9_,\sand-]+)/i);
+  if (!match) return [];
+
+  return [...new Set(match[1].match(/[A-Za-z0-9_]+/g) ?? [])]
+    .filter((token) => nodeIdSet.has(token));
 }
 
 function TopoStatePanel({
