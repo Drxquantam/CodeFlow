@@ -25,6 +25,7 @@ type EnhancedTrace = Omit<TraceResponse, "visualType"> & {
     result?: string;
     indegree?: Record<string, number>;
     values?: string[];
+    source?: string;
   };
 };
 
@@ -338,6 +339,10 @@ function buildLayout(trace: EnhancedTrace) {
 }
 
 function buildDirectedGraphLayout(trace: EnhancedTrace) {
+  if (trace.meta?.source) {
+    return buildSourceLayeredGraphLayout(trace, trace.meta.source);
+  }
+
   if (isAcyclic(trace)) {
     return buildDagLayout(trace);
   }
@@ -352,6 +357,56 @@ function buildDirectedGraphLayout(trace: EnhancedTrace) {
     layout.set(node.id, {
       x: centerX + Math.cos(angle) * radius,
       y: centerY + Math.sin(angle) * radius,
+    });
+  });
+
+  return layout;
+}
+
+function buildSourceLayeredGraphLayout(trace: EnhancedTrace, source: string) {
+  const layout = new Map<string, { x: number; y: number }>();
+  const outgoing = new Map(trace.nodes.map((node) => [node.id, [] as string[]]));
+
+  trace.edges.forEach((edge) => {
+    outgoing.set(edge.from, [...(outgoing.get(edge.from) ?? []), edge.to]);
+  });
+
+  const depth = new Map<string, number>([[source, 0]]);
+  const queue = [source];
+
+  while (queue.length) {
+    const node = queue.shift()!;
+    const currentDepth = depth.get(node) ?? 0;
+    (outgoing.get(node) ?? []).forEach((next) => {
+      if (!depth.has(next)) {
+        depth.set(next, currentDepth + 1);
+        queue.push(next);
+      }
+    });
+  }
+
+  trace.nodes.forEach((node) => {
+    if (!depth.has(node.id)) {
+      depth.set(node.id, Math.max(...depth.values(), 0) + 1);
+    }
+  });
+
+  const groups = new Map<number, string[]>();
+  trace.nodes.forEach((node) => {
+    const level = depth.get(node.id) ?? 0;
+    groups.set(level, [...(groups.get(level) ?? []), node.id]);
+  });
+
+  const levels = [...groups.keys()].sort((a, b) => a - b);
+  const xGap = 760 / Math.max(levels.length - 1, 1);
+  levels.forEach((level, levelIndex) => {
+    const nodes = groups.get(level) ?? [];
+    const yGap = 260 / Math.max(nodes.length - 1, 1);
+    nodes.forEach((node, nodeIndex) => {
+      layout.set(node, {
+        x: 80 + (levels.length === 1 ? 380 : levelIndex * xGap),
+        y: 130 + (nodes.length === 1 ? 130 : nodeIndex * yGap),
+      });
     });
   });
 
@@ -484,6 +539,7 @@ function normalizeTraceForVisualization(
     visualType: "graph",
     nodes,
     edges,
+    meta: { source: parsed.source == null ? undefined : String(parsed.source) },
     steps: trace.steps.map((step) => {
       const mentionedEdge = extractEdgeFromText(`${step.action} ${step.note}`);
       const activeEdges = mentionedEdge
@@ -1013,7 +1069,7 @@ function parseEdgeList(stdin: string) {
   const header = lines[0]?.match(/-?\d+/g)?.map(Number) ?? [];
   if (header.length < 2) return null;
 
-  const [n, m] = header;
+  const [n, m, source] = header;
   if (!Number.isInteger(n) || !Number.isInteger(m) || n <= 0 || m <= 0) return null;
 
   const rawEdges: Array<[number, number, number?]> = [];
@@ -1031,7 +1087,7 @@ function parseEdgeList(stdin: string) {
   }
 
   const usesZeroBased = rawEdges.some(([from, to]) => from === 0 || to === 0);
-  return rawEdges.length ? { n, edges: rawEdges, base: usesZeroBased ? 0 : 1 } : null;
+  return rawEdges.length ? { n, edges: rawEdges, base: usesZeroBased ? 0 : 1, source } : null;
 }
 
 function extractEdgeFromText(text: string): [number, number] | null {

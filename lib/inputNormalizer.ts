@@ -9,6 +9,17 @@ export function normalizeInputForVisualizer(rawInput: string) {
     ?? input;
 }
 
+export function formatInputForDisplay(rawInput: string) {
+  const input = rawInput.trim();
+  if (!input) return "";
+
+  return formatWeightedEdgeInput(input)
+    ?? formatAlienDictionaryInput(input)
+    ?? formatLinkedListInput(input)
+    ?? formatArrayInput(input)
+    ?? input;
+}
+
 export function canNormalizeInput(rawInput: string) {
   const input = rawInput.trim();
   return Boolean(input && normalizeInputForVisualizer(input) !== input);
@@ -57,22 +68,27 @@ function normalizeInlineArrayInput(input: string) {
 }
 
 function normalizeWeightedEdgeInput(input: string) {
-  const compact = input.replace(/\s+/g, " ");
-  const v = readNamedNumber(compact, "V");
-  const source = readNamedNumber(compact, "S");
-  const edgeMatch = compact.match(/Edges?\s*=\s*(\[[\s\S]+\])/i);
-
-  if (v == null || !edgeMatch) return null;
-
-  const triples = [...edgeMatch[1].matchAll(/\[\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*\]/g)]
-    .map((match) => [Number(match[1]), Number(match[2]), Number(match[3])]);
-
-  if (!triples.length) return null;
+  const parsed = parseWeightedEdgeInput(input);
+  if (!parsed) return null;
 
   return [
-    `${v} ${triples.length}${source == null ? "" : ` ${source}`}`,
-    ...triples.map((edge) => edge.join(" ")),
+    `${parsed.v} ${parsed.triples.length}${parsed.source == null ? "" : ` ${parsed.source}`}`,
+    ...parsed.triples.map((edge) => edge.join(" ")),
   ].join("\n");
+}
+
+function formatWeightedEdgeInput(input: string) {
+  const parsed = parseWeightedEdgeInput(input);
+  if (!parsed) return null;
+
+  return [
+    `Vertices: ${parsed.v}`,
+    parsed.source == null ? "" : `Source: ${parsed.source}`,
+    "Edges:",
+    ...parsed.triples.map(([from, to, weight]) => `${from} -> ${to} (${weight})`),
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function normalizeLinkedListInput(input: string) {
@@ -92,6 +108,57 @@ function normalizeLinkedListInput(input: string) {
 function readNamedNumber(input: string, name: string) {
   const match = input.match(new RegExp(`\\b${name}\\s*=\\s*(\\d+)`, "i"));
   return match ? Number(match[1]) : null;
+}
+
+function parseWeightedEdgeInput(input: string) {
+  const compact = input.replace(/\s+/g, " ");
+  const v = readNamedNumber(compact, "V") ?? readNamedNumber(compact, "Vertices");
+  const source = readNamedNumber(compact, "S") ?? readNamedNumber(compact, "Source");
+  const edgeMatch = compact.match(/Edges?\s*=\s*(\[[\s\S]+\])/i);
+
+  if (v != null && !edgeMatch && /Edges\s*:/i.test(input)) {
+    const triples = [...input.matchAll(/(-?\d+)\s*->\s*(-?\d+)\s*\((-?\d+)\)/g)]
+      .map((match) => [Number(match[1]), Number(match[2]), Number(match[3])] as [number, number, number]);
+
+    return triples.length ? { v, source, triples } : null;
+  }
+
+  if (v == null || !edgeMatch) return null;
+
+  const triples = [...edgeMatch[1].matchAll(/\[\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*\]/g)]
+    .map((match) => [Number(match[1]), Number(match[2]), Number(match[3])] as [number, number, number]);
+
+  return triples.length ? { v, source, triples } : null;
+}
+
+function formatAlienDictionaryInput(input: string) {
+  const normalized = normalizeAlienDictionaryInput(input);
+  if (!normalized || normalized === input.trim()) return null;
+  const [header, ...words] = normalized.split(/\r?\n/);
+  const [n, k] = header.split(/\s+/);
+
+  return [`Words: ${n}`, `Letters: ${k}`, "Dictionary:", ...words].join("\n");
+}
+
+function formatLinkedListInput(input: string) {
+  const normalized = normalizeLinkedListInput(input);
+  if (!normalized || normalized === input.trim()) return null;
+  const lines = normalized.split(/\r?\n/);
+
+  return `Linked List:\n${lines[2]?.split(/\s+/).join(" -> ") ?? ""}`;
+}
+
+function formatArrayInput(input: string) {
+  const normalized = normalizeInlineArrayInput(input);
+  if (!normalized || normalized === input.trim()) return null;
+  const lines = normalized.split(/\r?\n/);
+
+  return [
+    `Array: [${lines[1]?.split(/\s+/).join(", ") ?? ""}]`,
+    lines[2] ? `Target: ${lines[2]}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function inferAlphabetSize(words: string[]) {

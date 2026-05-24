@@ -2,7 +2,7 @@
 
 import { BrainCircuit, ChartNoAxesCombined, ShieldCheck, Sparkles, Star, Wand2 } from "lucide-react";
 import { useAlgoStore } from "@/store/useAlgoStore";
-import { normalizeInputForVisualizer } from "@/lib/inputNormalizer";
+import { formatInputForDisplay } from "@/lib/inputNormalizer";
 
 export default function TerminalPanel() {
   const stdin = useAlgoStore((state) => state.stdin);
@@ -32,7 +32,7 @@ export default function TerminalPanel() {
             </div>
             <button
               type="button"
-              onClick={() => setStdin(normalizeInputForVisualizer(stdin))}
+              onClick={() => setStdin(formatInputForDisplay(stdin))}
               disabled={!hasInput}
               className="inline-flex h-9 items-center gap-2 rounded-md border border-white/[0.1] bg-white/[0.04] px-3 text-sm font-semibold text-zinc-300 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -49,7 +49,7 @@ export default function TerminalPanel() {
           />
           {hasInput ? (
             <p className="mt-3 rounded-md border border-signal-blue/20 bg-signal-blue/10 p-3 text-sm leading-6 text-signal-blue">
-              Auto Format converts structured examples into clean stdin. For graphs, the first line becomes <span className="font-mono">V E S</span>, followed by one weighted edge per line.
+              Auto Format keeps input readable. CodeFlow still converts it internally for dry runs and visualization.
             </p>
           ) : null}
         </div>
