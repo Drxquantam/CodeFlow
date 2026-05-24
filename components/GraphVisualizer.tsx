@@ -423,69 +423,138 @@ function buildCompactWeightedDagLayout(trace: EnhancedTrace, source: string) {
 
   const layout = new Map<string, { x: number; y: number }>();
   const outgoing = new Map(trace.nodes.map((node) => [node.id, [] as string[]]));
-  const incomingCount = new Map(trace.nodes.map((node) => [node.id, 0]));
+  const incoming = new Map(trace.nodes.map((node) => [node.id, [] as string[]]));
 
   trace.edges.forEach((edge) => {
     outgoing.set(edge.from, [...(outgoing.get(edge.from) ?? []), edge.to]);
-    incomingCount.set(edge.to, (incomingCount.get(edge.to) ?? 0) + 1);
+    incoming.set(edge.to, [...(incoming.get(edge.to) ?? []), edge.from]);
   });
 
-  const firstPath = [source];
-  const used = new Set(firstPath);
-  while (firstPath.length < trace.nodes.length) {
-    const current = firstPath[firstPath.length - 1];
-    const next = (outgoing.get(current) ?? []).find((node) => !used.has(node));
-    if (!next) break;
-    firstPath.push(next);
-    used.add(next);
-  }
-
-  const leftX = 80;
-  const rowGap = 120;
-  firstPath.forEach((node, index) => {
-    layout.set(node, { x: leftX + Math.floor(index / 3) * 270, y: 70 + (index % 3) * rowGap });
-  });
-
+  const ranks = computeSourceRanks(trace, source, outgoing, incoming);
+  const groups = new Map<number, string[]>();
   trace.nodes.forEach((node) => {
-    if (layout.has(node.id)) return;
+    const rank = ranks.get(node.id) ?? 0;
+    groups.set(rank, [...(groups.get(rank) ?? []), node.id]);
+  });
 
-    const parents = trace.edges.filter((edge) => edge.to === node.id).map((edge) => edge.from);
-    const parentPoints = parents.map((parent) => layout.get(parent)).filter(Boolean) as Array<{
-      x: number;
-      y: number;
-    }>;
-    const avgX = parentPoints.length
-      ? parentPoints.reduce((sum, point) => sum + point.x, 0) / parentPoints.length
-      : 220;
-    const avgY = parentPoints.length
-      ? parentPoints.reduce((sum, point) => sum + point.y, 0) / parentPoints.length
-      : 180;
-    const sharedParents = Math.max(incomingCount.get(node.id) ?? 1, 1);
-
-    layout.set(node.id, {
-      x: Math.min(820, avgX + 250),
-      y: Math.max(70, Math.min(390, avgY - 60 + sharedParents * 28)),
+  const orderedRanks = [...groups.keys()].sort((a, b) => a - b);
+  orderedRanks.forEach((rank) => {
+    const nodes = groups.get(rank) ?? [];
+    nodes.sort((a, b) => {
+      const aParents = incoming.get(a) ?? [];
+      const bParents = incoming.get(b) ?? [];
+      const aParentRank = average(aParents.map((parent) => ranks.get(parent) ?? 0));
+      const bParentRank = average(bParents.map((parent) => ranks.get(parent) ?? 0));
+      if (aParentRank !== bParentRank) return aParentRank - bParentRank;
+      return naturalCompare(a, b);
     });
   });
 
-  spreadOverlaps(layout);
+  const xGap = 780 / Math.max(orderedRanks.length - 1, 1);
+  orderedRanks.forEach((rank, rankIndex) => {
+    const nodes = groups.get(rank) ?? [];
+    const yGap = Math.min(150, 320 / Math.max(nodes.length - 1, 1));
+    const startY = 260 - ((nodes.length - 1) * yGap) / 2;
+
+    nodes.forEach((node, nodeIndex) => {
+      layout.set(node, {
+        x: 70 + (orderedRanks.length === 1 ? 390 : rankIndex * xGap),
+        y: nodes.length === 1 ? 260 : startY + nodeIndex * yGap,
+      });
+    });
+  });
+
   return layout;
 }
 
-function spreadOverlaps(layout: Map<string, { x: number; y: number }>) {
-  const points = [...layout.entries()];
-  for (let pass = 0; pass < 5; pass += 1) {
-    for (let i = 0; i < points.length; i += 1) {
-      for (let j = i + 1; j < points.length; j += 1) {
-        const [, a] = points[i];
-        const [, b] = points[j];
-        if (Math.abs(a.x - b.x) < 120 && Math.abs(a.y - b.y) < 80) {
-          b.y = Math.min(430, b.y + 80);
-          b.x = Math.min(840, b.x + 40);
-        }
+function computeSourceRanks(
+  trace: EnhancedTrace,
+  source: string,
+  outgoing: Map<string, string[]>,
+  incoming: Map<string, string[]>,
+) {
+  const nodes = trace.nodes.map((node) => node.id);
+  const ranks = new Map<string, number>([[source, 0]]);
+  const reachable = new Set<string>([source]);
+  const queue = [source];
+
+  while (queue.length) {
+    const node = queue.shift()!;
+    (outgoing.get(node) ?? []).forEach((next) => {
+      if (!reachable.has(next)) {
+        reachable.add(next);
+        queue.push(next);
       }
+    });
+  }
+
+  const indegree = new Map(nodes.map((node) => [node, 0]));
+  trace.edges.forEach((edge) => {
+    if (reachable.has(edge.from) && reachable.has(edge.to)) {
+      indegree.set(edge.to, (indegree.get(edge.to) ?? 0) + 1);
+    }
+  });
+
+  const topoQueue = nodes.filter((node) => reachable.has(node) && (indegree.get(node) ?? 0) === 0);
+  const topo: string[] = [];
+  while (topoQueue.length) {
+    const node = topoQueue.shift()!;
+    topo.push(node);
+    (outgoing.get(node) ?? []).forEach((next) => {
+      if (!reachable.has(next)) return;
+      indegree.set(next, (indegree.get(next) ?? 0) - 1);
+      if ((indegree.get(next) ?? 0) === 0) topoQueue.push(next);
+    });
+  }
+
+  if (topo.length === reachable.size) {
+    topo.forEach((node) => {
+      const currentRank = ranks.get(node) ?? 0;
+      (outgoing.get(node) ?? []).forEach((next) => {
+        if (reachable.has(next)) {
+          ranks.set(next, Math.max(ranks.get(next) ?? 0, currentRank + 1));
+        }
+      });
+    });
+  } else {
+    const bfs = [source];
+    while (bfs.length) {
+      const node = bfs.shift()!;
+      const currentRank = ranks.get(node) ?? 0;
+      (outgoing.get(node) ?? []).forEach((next) => {
+        if (!ranks.has(next)) {
+          ranks.set(next, currentRank + 1);
+          bfs.push(next);
+        }
+      });
     }
   }
+
+  const maxReachableRank = Math.max(...[...ranks.values()], 0);
+  nodes.forEach((node) => {
+    if (ranks.has(node)) return;
+    const parentRanks = (incoming.get(node) ?? [])
+      .map((parent) => ranks.get(parent))
+      .filter((rank): rank is number => rank != null);
+    ranks.set(node, parentRanks.length ? Math.max(...parentRanks) + 1 : maxReachableRank + 1);
+  });
+
+  return ranks;
+}
+
+function average(values: number[]) {
+  if (!values.length) return 0;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function naturalCompare(a: string, b: string) {
+  const aNumber = Number(a);
+  const bNumber = Number(b);
+  if (Number.isFinite(aNumber) && Number.isFinite(bNumber)) {
+    return aNumber - bNumber;
+  }
+
+  return a.localeCompare(b);
 }
 
 function isAcyclic(trace: EnhancedTrace) {
