@@ -49,7 +49,7 @@ export default function TerminalPanel() {
           />
           {hasInput ? (
             <p className="mt-3 rounded-md border border-signal-blue/20 bg-signal-blue/10 p-3 text-sm leading-6 text-signal-blue">
-              Auto Format accepts structured examples like <span className="font-mono">Input: N = 5, K = 4, dict = [...]</span> and leaves already-clean stdin unchanged.
+              Auto Format converts structured examples into clean stdin. For graphs, the first line becomes <span className="font-mono">V E S</span>, followed by one weighted edge per line.
             </p>
           ) : null}
         </div>

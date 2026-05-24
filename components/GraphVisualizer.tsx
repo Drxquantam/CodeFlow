@@ -313,7 +313,7 @@ function buildLayout(trace: EnhancedTrace) {
   }
 
   if (trace.visualType === "graph") {
-    return buildCircleLayout(trace);
+    return buildDirectedGraphLayout(trace);
   }
 
   const layout = new Map<string, { x: number; y: number }>();
@@ -337,7 +337,11 @@ function buildLayout(trace: EnhancedTrace) {
   return layout;
 }
 
-function buildCircleLayout(trace: EnhancedTrace) {
+function buildDirectedGraphLayout(trace: EnhancedTrace) {
+  if (isAcyclic(trace)) {
+    return buildDagLayout(trace);
+  }
+
   const layout = new Map<string, { x: number; y: number }>();
   const centerX = 460;
   const centerY = 260;
@@ -352,6 +356,31 @@ function buildCircleLayout(trace: EnhancedTrace) {
   });
 
   return layout;
+}
+
+function isAcyclic(trace: EnhancedTrace) {
+  const incoming = new Map(trace.nodes.map((node) => [node.id, 0]));
+  const outgoing = new Map(trace.nodes.map((node) => [node.id, [] as string[]]));
+
+  trace.edges.forEach((edge) => {
+    incoming.set(edge.to, (incoming.get(edge.to) ?? 0) + 1);
+    outgoing.set(edge.from, [...(outgoing.get(edge.from) ?? []), edge.to]);
+  });
+
+  const queue = trace.nodes.filter((node) => (incoming.get(node.id) ?? 0) === 0).map((node) => node.id);
+  let seen = 0;
+
+  while (queue.length) {
+    const node = queue.shift()!;
+    seen += 1;
+    (outgoing.get(node) ?? []).forEach((next) => {
+      const count = (incoming.get(next) ?? 0) - 1;
+      incoming.set(next, count);
+      if (count === 0) queue.push(next);
+    });
+  }
+
+  return seen === trace.nodes.length;
 }
 
 function buildDagLayout(trace: EnhancedTrace) {
@@ -440,7 +469,7 @@ function normalizeTraceForVisualization(
   if (!parsed || (inputShape.kind !== "graph" && codeIntent.kind !== "graph")) return trace;
 
   const nodes = Array.from({ length: parsed.n }, (_, index) => {
-    const id = String(index + 1);
+    const id = String(parsed.base === 0 ? index : index + 1);
     return { id, label: id, group: "input" };
   });
   const edges = parsed.edges.map(([from, to, weight]) => ({
@@ -987,7 +1016,7 @@ function parseEdgeList(stdin: string) {
   const [n, m] = header;
   if (!Number.isInteger(n) || !Number.isInteger(m) || n <= 0 || m <= 0) return null;
 
-  const edges: Array<[number, number, number?]> = [];
+  const rawEdges: Array<[number, number, number?]> = [];
   for (const line of lines.slice(1, 1 + m)) {
     const values = line.match(/-?\d+/g)?.map(Number) ?? [];
     if (values.length < 2) continue;
@@ -997,11 +1026,12 @@ function parseEdgeList(stdin: string) {
     const oneBased = from >= 1 && from <= n && to >= 1 && to <= n;
 
     if (zeroBased || oneBased) {
-      edges.push([from, to, weight]);
+      rawEdges.push([from, to, weight]);
     }
   }
 
-  return edges.length ? { n, edges } : null;
+  const usesZeroBased = rawEdges.some(([from, to]) => from === 0 || to === 0);
+  return rawEdges.length ? { n, edges: rawEdges, base: usesZeroBased ? 0 : 1 } : null;
 }
 
 function extractEdgeFromText(text: string): [number, number] | null {
