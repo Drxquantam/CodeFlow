@@ -566,6 +566,11 @@ function normalizeTraceForVisualization(
     if (hashTrace) return hashTrace;
   }
 
+  if (inputShape.kind === "array" && codeIntent.kind === "array-sort") {
+    const sortTrace = buildMergeSortTrace(stdin);
+    if (sortTrace) return sortTrace;
+  }
+
   if (inputShape.kind === "scalar" && codeIntent.kind === "recursion") {
     const recursionTrace = buildRecursionTrace(stdin, codeIntent.functionName);
     if (recursionTrace) return recursionTrace;
@@ -628,6 +633,7 @@ type InputShape =
 
 type CodeIntent =
   | { kind: "array-hash" }
+  | { kind: "array-sort" }
   | { kind: "graph" }
   | { kind: "linked-list" }
   | { kind: "recursion"; functionName: string }
@@ -681,6 +687,10 @@ function detectCodeIntent(code: string): CodeIntent {
 
   if (/unordered_map|map\s*<|target|complement|need\s*=|seen\./i.test(code)) {
     return { kind: "array-hash" };
+  }
+
+  if (/merge\s*sort|mergeSort|mergesort|\bmerge\s*\(|\bsort\s*\(/i.test(code)) {
+    return { kind: "array-sort" };
   }
 
   return { kind: "unknown" };
@@ -937,6 +947,117 @@ function buildArrayHashLookupTrace(stdin: string): EnhancedTrace | null {
   };
 }
 
+function buildMergeSortTrace(stdin: string): EnhancedTrace | null {
+  const parsed = parseArrayInput(stdin);
+  if (!parsed.length) return null;
+
+  const current = [...parsed];
+  const steps: EnhancedTrace["steps"] = [
+    makeArrayStateStep(1, "Start with input array", current, [], [], "Initial unsorted array."),
+  ];
+
+  const merge = (left: number, middle: number, right: number) => {
+    const leftPart = current.slice(left, middle + 1);
+    const rightPart = current.slice(middle + 1, right + 1);
+    let i = 0;
+    let j = 0;
+    let k = left;
+
+    steps.push(
+      makeArrayStateStep(
+        steps.length + 1,
+        `Merge range [${left}, ${right}]`,
+        current,
+        rangeIds(left, right),
+        [],
+        `Left: [${leftPart.join(", ")}], right: [${rightPart.join(", ")}].`,
+      ),
+    );
+
+    while (i < leftPart.length && j < rightPart.length) {
+      current[k] = leftPart[i] <= rightPart[j] ? leftPart[i++] : rightPart[j++];
+      k += 1;
+    }
+
+    while (i < leftPart.length) {
+      current[k] = leftPart[i];
+      i += 1;
+      k += 1;
+    }
+
+    while (j < rightPart.length) {
+      current[k] = rightPart[j];
+      j += 1;
+      k += 1;
+    }
+
+    steps.push(
+      makeArrayStateStep(
+        steps.length + 1,
+        `After merge [${left}, ${right}]`,
+        current,
+        rangeIds(left, right),
+        rangeIds(left, right),
+        `Updated range becomes [${current.slice(left, right + 1).join(", ")}].`,
+      ),
+    );
+  };
+
+  const sort = (left: number, right: number) => {
+    if (left >= right || steps.length >= 12) return;
+    const middle = Math.floor((left + right) / 2);
+
+    sort(left, middle);
+    sort(middle + 1, right);
+    if (steps.length < 12) {
+      merge(left, middle, right);
+    }
+  };
+
+  sort(0, current.length - 1);
+
+  return {
+    summary: "Merge sort visualization: recursively split the array and update each merged range.",
+    visualType: "array",
+    nodes: parsed.map((value, index) => ({
+      id: `a${index}`,
+      label: String(value),
+      group: "array",
+    })),
+    edges: [],
+    steps: steps.slice(0, 12),
+    meta: {
+      result: `[${current.join(", ")}]`,
+    },
+  };
+}
+
+function makeArrayStateStep(
+  step: number,
+  action: string,
+  values: number[],
+  activeNodes: string[],
+  visitedNodes: string[],
+  note: string,
+) {
+  return {
+    step,
+    line: 1,
+    action,
+    variables: {
+      arrayState: values.join(" "),
+    },
+    note,
+    activeNodes,
+    activeEdges: [],
+    visitedNodes,
+  };
+}
+
+function rangeIds(left: number, right: number) {
+  return Array.from({ length: right - left + 1 }, (_, index) => `a${left + index}`);
+}
+
 function parseArrayWithTarget(stdin: string) {
   const rawArray = stdin.match(/(?:arr|nums|array|input)\s*=\s*\[([^\]]+)\]/i);
   const normalized = normalizeInputForVisualizer(stdin);
@@ -965,6 +1086,26 @@ function parseArrayWithTarget(stdin: string) {
   }
 
   return null;
+}
+
+function parseArrayInput(stdin: string) {
+  const rawArray = stdin.match(/(?:arr|nums|array|input)\s*=\s*\[([^\]]+)\]/i);
+  if (rawArray) {
+    return rawArray[1]
+      .split(",")
+      .map((item) => Number(item.trim()))
+      .filter((value) => Number.isFinite(value));
+  }
+
+  const normalized = normalizeInputForVisualizer(stdin);
+  const lines = normalized.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (lines.length >= 2) {
+    const count = Number(lines[0]);
+    const values = lines[1].match(/-?\d+/g)?.map(Number) ?? [];
+    return Number.isInteger(count) ? values.slice(0, count) : values;
+  }
+
+  return [];
 }
 
 function formatSeen(seen: Map<number, number>) {
@@ -1224,7 +1365,13 @@ function ArrayVisualizer({
   trace: EnhancedTrace;
   highlight: ReturnType<typeof buildHighlight>;
 }) {
-  const cells = trace.nodes.length ? trace.nodes : [];
+  const stateValues = String(highlight.currentVariables.arrayState ?? "")
+    .split(/\s+/)
+    .filter(Boolean);
+  const cells = trace.nodes.map((node, index) => ({
+    ...node,
+    label: stateValues[index] ?? node.label,
+  }));
 
   return (
     <div className="grid min-h-[420px] place-items-center rounded-md bg-[#121212] p-6">
@@ -1492,9 +1639,10 @@ function buildHighlight(trace: EnhancedTrace | null, frame: number) {
   const activeNodes = new Set<string>();
   const activeEdges = new Set<string>();
   const visitedNodes = new Set<string>();
+  const currentVariables: Record<string, string | number | boolean> = {};
 
   if (!trace) {
-    return { activeNodes, activeEdges, visitedNodes };
+    return { activeNodes, activeEdges, visitedNodes, currentVariables };
   }
 
   for (let index = 0; index <= frame; index += 1) {
@@ -1504,6 +1652,7 @@ function buildHighlight(trace: EnhancedTrace | null, frame: number) {
   }
 
   const current = trace.steps[frame];
+  Object.assign(currentVariables, current?.variables ?? {});
   current?.activeNodes?.forEach((node) => activeNodes.add(String(node)));
   current?.activeEdges?.forEach((edge) => activeEdges.add(String(edge)));
   inferNodesFromStep(trace, current?.variables).forEach((node) => activeNodes.add(node));
@@ -1512,7 +1661,7 @@ function buildHighlight(trace: EnhancedTrace | null, frame: number) {
     activeNodes.add(trace.nodes[frame].id);
   }
 
-  return { activeNodes, activeEdges, visitedNodes };
+  return { activeNodes, activeEdges, visitedNodes, currentVariables };
 }
 
 function inferNodesFromStep(

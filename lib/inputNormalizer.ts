@@ -91,6 +91,12 @@ function formatWeightedEdgeInput(input: string) {
     .join("\n");
 }
 
+type ParsedGraphInput = {
+  v: number;
+  source: number | null;
+  triples: Array<[number, number, number]>;
+};
+
 function normalizeLinkedListInput(input: string) {
   const match = input.match(/head\s*=\s*\[([^\]]+)\]/i);
   if (!match) return null;
@@ -115,12 +121,24 @@ function parseWeightedEdgeInput(input: string) {
   const v = readNamedNumber(compact, "V") ?? readNamedNumber(compact, "Vertices");
   const source = readNamedNumber(compact, "S") ?? readNamedNumber(compact, "Source");
   const edgeMatch = compact.match(/Edges?\s*=\s*(\[[\s\S]+\])/i);
+  const adjacencyMatch = compact.match(/\badj\s*=\s*(\[[\s\S]+\])/i);
+
+  if (v != null && adjacencyMatch) {
+    const triples = [...adjacencyMatch[1].matchAll(/\[\s*(-?\d+)\s*,\s*(-?\d+)(?:\s*,\s*(-?\d+))?\s*\]/g)]
+      .map((match) => [
+        Number(match[1]),
+        Number(match[2]),
+        match[3] == null ? 1 : Number(match[3]),
+      ] as [number, number, number]);
+
+    return triples.length ? ({ v, source, triples } satisfies ParsedGraphInput) : null;
+  }
 
   if (v != null && !edgeMatch && /Edges\s*:/i.test(input)) {
     const triples = [...input.matchAll(/(-?\d+)\s*->\s*(-?\d+)\s*\((-?\d+)\)/g)]
       .map((match) => [Number(match[1]), Number(match[2]), Number(match[3])] as [number, number, number]);
 
-    return triples.length ? { v, source, triples } : null;
+    return triples.length ? ({ v, source, triples } satisfies ParsedGraphInput) : null;
   }
 
   if (v == null || !edgeMatch) return null;
@@ -128,7 +146,7 @@ function parseWeightedEdgeInput(input: string) {
   const triples = [...edgeMatch[1].matchAll(/\[\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*\]/g)]
     .map((match) => [Number(match[1]), Number(match[2]), Number(match[3])] as [number, number, number]);
 
-  return triples.length ? { v, source, triples } : null;
+  return triples.length ? ({ v, source, triples } satisfies ParsedGraphInput) : null;
 }
 
 function formatAlienDictionaryInput(input: string) {
