@@ -1,7 +1,8 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, ClipboardList, FileSearch, Gauge, Lightbulb, Table2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardList, FileSearch, Gauge, Lightbulb, MessageSquare, Send, Table2 } from "lucide-react";
 import { useState } from "react";
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useAlgoStore } from "@/store/useAlgoStore";
 import type { CodeFlowAnalysisResult } from "@/types/codeflowAnalysis";
 
@@ -85,6 +86,7 @@ export default function AnalysisTabs() {
         {active === "Dry Run" ? (
           <DryRunTab
             result={visibleResult}
+            code={code}
             stdin={stdin}
             setStdin={setStdin}
             onAnalyze={runAnalysis}
@@ -171,6 +173,8 @@ function AnalyzeTab({ result }: { result: CodeFlowAnalysisResult | null }) {
         </div>
       </Section>
 
+      <ComplexityCurve result={result} />
+
       <Section title="Better Approach" icon={<CheckCircle2 className="h-4 w-4" />}>
         <p className="text-sm leading-6 text-zinc-300">{result.analysis?.betterApproach || "No better approach suggestion returned."}</p>
       </Section>
@@ -184,12 +188,14 @@ function AnalyzeTab({ result }: { result: CodeFlowAnalysisResult | null }) {
 
 function DryRunTab({
   result,
+  code,
   stdin,
   setStdin,
   onAnalyze,
   loading,
 }: {
   result: CodeFlowAnalysisResult | null;
+  code: string;
   stdin: string;
   setStdin: (value: string) => void;
   onAnalyze: () => void;
@@ -242,10 +248,10 @@ function DryRunTab({
             </thead>
             <tbody className="divide-y divide-white/[0.06]">
               {dryRun.rows.map((row, index) => (
-                <tr key={`${index}-${JSON.stringify(row)}`} className="text-zinc-300">
+                <tr key={`${index}-${JSON.stringify(row)}`} className="text-zinc-300 transition hover:bg-white/[0.035]">
                   {dryRun.columns.map((column) => (
                     <td key={column} className="px-3 py-3 align-top">
-                      {row[column] ?? "-"}
+                      <CellValue column={column} value={row[column] ?? "-"} />
                     </td>
                   ))}
                 </tr>
@@ -259,6 +265,7 @@ function DryRunTab({
 
       {dryRun ? (
         <div className="grid gap-4 xl:grid-cols-3">
+          <StateSummary dryRun={dryRun} />
           <Section title="Variable Watch" icon={<Gauge className="h-4 w-4" />}>
             {dryRun.variableWatch?.length ? (
               <div className="space-y-2">
@@ -292,6 +299,8 @@ function DryRunTab({
           </Section>
         </div>
       ) : null}
+
+      {result ? <DryRunChat result={result} code={code} stdin={stdin} /> : null}
     </div>
   );
 }
@@ -322,6 +331,168 @@ function TestCasesTab({ result }: { result: CodeFlowAnalysisResult | null }) {
         </div>
       ))}
     </div>
+  );
+}
+
+function ComplexityCurve({ result }: { result: CodeFlowAnalysisResult }) {
+  const worst = result.analysis?.timeComplexity.worst ?? "";
+  const curve = buildComplexityCurve(worst);
+
+  return (
+    <section className="rounded-md border border-white/[0.08] bg-[#111] p-4 xl:col-span-2">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.16em] text-zinc-400">
+            <Gauge className="h-4 w-4" />
+            Time Complexity Curve
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-zinc-500">
+            Growth preview for {worst || "unknown complexity"} across increasing input size.
+          </p>
+        </div>
+        <Chip label={curve.label} />
+      </div>
+      <div className="h-[280px] rounded-md border border-white/[0.08] bg-black/35 p-3">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={curve.points} margin={{ left: 8, right: 16, top: 12, bottom: 8 }}>
+            <CartesianGrid stroke="#27272a" strokeDasharray="4 4" />
+            <XAxis dataKey="n" stroke="#a1a1aa" tick={{ fontSize: 12 }} />
+            <YAxis stroke="#a1a1aa" tick={{ fontSize: 12 }} />
+            <Tooltip
+              contentStyle={{ background: "#09090b", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8 }}
+              labelStyle={{ color: "#f4f4f5" }}
+            />
+            <Line type="monotone" dataKey="operations" stroke="#4ea1ff" strokeWidth={3} dot={{ r: 4, fill: "#4ea1ff" }} activeDot={{ r: 6 }} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
+  );
+}
+
+function StateSummary({ dryRun }: { dryRun: NonNullable<CodeFlowAnalysisResult["dryRun"]> }) {
+  const latestWatch = dryRun.variableWatch?.at(-1);
+  const latestSnapshot = dryRun.snapshots?.at(-1);
+
+  return (
+    <Section title="Current State Focus" icon={<Table2 className="h-4 w-4" />}>
+      <div className="space-y-3">
+        {latestSnapshot ? (
+          <div className="rounded-md border border-signal-blue/20 bg-signal-blue/10 p-3">
+            <p className="font-semibold text-white">Step {latestSnapshot.step}: {latestSnapshot.title}</p>
+            <p className="mt-1 text-sm leading-6 text-zinc-300">{latestSnapshot.description}</p>
+          </div>
+        ) : (
+          <p className="text-sm text-zinc-500">No focused snapshot returned.</p>
+        )}
+        {latestWatch?.variables ? (
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(latestWatch.variables).map(([key, value]) => (
+              <span key={key} className="rounded-full border border-white/[0.1] bg-black/45 px-3 py-1.5 font-mono text-xs text-zinc-200">
+                {key}={value}
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </Section>
+  );
+}
+
+function CellValue({ column, value }: { column: string; value: string }) {
+  const lower = column.toLowerCase();
+  if (lower.includes("array") || lower.includes("state") || lower.includes("queue") || lower.includes("stack")) {
+    return <span className="font-mono text-signal-green">{value}</span>;
+  }
+  if (lower.includes("condition")) {
+    return <span className="font-mono text-signal-yellow">{value}</span>;
+  }
+  if (lower.includes("action")) {
+    return <span className="text-white">{value}</span>;
+  }
+  return <span>{value}</span>;
+}
+
+function DryRunChat({
+  result,
+  code,
+  stdin,
+}: {
+  result: CodeFlowAnalysisResult;
+  code: string;
+  stdin: string;
+}) {
+  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; text: string }>>([]);
+  const [question, setQuestion] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const askQuestion = async () => {
+    if (!question.trim()) return;
+    const currentQuestion = question.trim();
+    setMessages((current) => [...current, { role: "user", text: currentQuestion }]);
+    setQuestion("");
+    setLoading(true);
+
+    try {
+      const response = await fetch("/api/dry-run-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: currentQuestion, analysis: result, code, stdin }),
+      });
+      const payload = (await response.json()) as { answer?: string; error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Chat failed.");
+      setMessages((current) => [...current, { role: "assistant", text: payload.answer ?? "I could not answer that from the current dry run." }]);
+    } catch (caught) {
+      setMessages((current) => [...current, { role: "assistant", text: caught instanceof Error ? caught.message : "Chat failed." }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <section className="rounded-md border border-white/[0.08] bg-[#111] p-4">
+      <h3 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.16em] text-zinc-400">
+        <MessageSquare className="h-4 w-4" />
+        Ask About This Dry Run
+      </h3>
+      <div className="mb-3 max-h-72 space-y-2 overflow-auto rounded-md border border-white/[0.08] bg-black/35 p-3">
+        {messages.length ? messages.map((message, index) => (
+          <div
+            key={`${message.role}-${index}-${message.text}`}
+            className={`rounded-md p-3 text-sm leading-6 ${
+              message.role === "user" ? "ml-auto max-w-[85%] bg-white text-black" : "mr-auto max-w-[85%] bg-white/[0.06] text-zinc-200"
+            }`}
+          >
+            {message.text}
+          </div>
+        )) : (
+          <p className="text-sm text-zinc-500">Ask why a condition is true, why a variable changes, or what hidden case may fail.</p>
+        )}
+      </div>
+      <div className="flex gap-2">
+        <input
+          value={question}
+          onChange={(event) => setQuestion(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              void askQuestion();
+            }
+          }}
+          placeholder="Why did this step happen?"
+          className="h-10 min-w-0 flex-1 rounded-md border border-white/[0.1] bg-black/40 px-3 text-sm text-zinc-200 outline-none"
+        />
+        <button
+          type="button"
+          onClick={() => void askQuestion()}
+          disabled={loading || !question.trim()}
+          className="inline-flex h-10 items-center gap-2 rounded-md bg-white px-4 text-sm font-bold text-black disabled:cursor-wait disabled:bg-zinc-500"
+        >
+          <Send className="h-4 w-4" />
+          {loading ? "Asking" : "Ask"}
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -423,4 +594,41 @@ function formatVariables(variables: Record<string, string>) {
   return Object.entries(variables)
     .map(([key, value]) => `${key}=${value}`)
     .join(", ");
+}
+
+function buildComplexityCurve(complexity: string) {
+  const normalized = complexity.toLowerCase().replace(/\s+/g, "");
+  const inputs = [10, 25, 50, 75, 100, 150, 200];
+  const calculator = normalized.includes("n^2") || normalized.includes("n2")
+    ? (n: number) => n * n
+    : normalized.includes("nlogn")
+      ? (n: number) => n * Math.log2(n)
+      : normalized.includes("logn")
+        ? (n: number) => Math.log2(n)
+        : normalized.includes("2^n")
+          ? (n: number) => Math.pow(2, Math.min(n / 10, 20))
+          : normalized.includes("n")
+            ? (n: number) => n
+            : () => 1;
+
+  const raw = inputs.map((n) => ({ n, value: calculator(n) }));
+  const max = Math.max(...raw.map((point) => point.value), 1);
+
+  return {
+    label: normalized.includes("n^2") || normalized.includes("n2")
+      ? "quadratic"
+      : normalized.includes("nlogn")
+        ? "linearithmic"
+        : normalized.includes("logn")
+          ? "logarithmic"
+          : normalized.includes("2^n")
+            ? "exponential"
+            : normalized.includes("n")
+              ? "linear"
+              : "constant",
+    points: raw.map((point) => ({
+      n: point.n,
+      operations: Math.round((point.value / max) * 100),
+    })),
+  };
 }

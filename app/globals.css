@@ -20,6 +20,9 @@ body {
 
 body {
   overflow-x: hidden;
+  font-family: Consolas, "Cascadia Code", "Cascadia Mono", "SFMono-Regular", Menlo, Monaco, "Liberation Mono", "Courier New", monospace;
+  letter-spacing: 0;
+  font-weight: 400;
 }
 
 button,

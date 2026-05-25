@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { Sun } from "lucide-react";
 import AnalysisTabs from "@/components/AnalysisTabs";
 import CodeEditor from "@/components/CodeEditor";
@@ -54,9 +55,13 @@ export default function Home() {
         <div className="mx-auto flex h-[86px] max-w-[1800px] items-center justify-between px-6 sm:px-10 lg:px-12">
           <div className="flex items-center gap-3">
             <div className="grid h-11 w-11 place-items-center rounded-[13px] border border-white/[0.1] bg-white/[0.045] shadow-insetLine">
-              <span className="font-mono text-[17px] font-black tracking-[-0.08em] text-signal-yellow">
-                {"{{/}}"}
-              </span>
+              <Image
+                src="/codeflow-logo.png"
+                alt="CodeFlow logo"
+                width={36}
+                height={36}
+                className="h-9 w-9 object-contain"
+              />
             </div>
             <div className="flex items-baseline gap-3">
               <span className="text-[26px] font-semibold tracking-normal text-white">CodeFlow</span>
@@ -79,7 +84,7 @@ export default function Home() {
       <section className="mx-auto max-w-[1800px] px-6 py-12 sm:px-10 lg:px-12">
         <div className="mb-9 max-w-[980px]">
           <h1 className="text-[42px] font-bold leading-tight tracking-normal text-white sm:text-[58px]">
-            Algorithm Visualizer
+            DSA Code Mentor
           </h1>
           <p className="mt-5 max-w-[1080px] text-[24px] leading-10 text-zinc-100">
             <span>{typedHero}</span>
@@ -230,28 +235,23 @@ const languageTags = [
 const featureCards = [
   {
     title: "Review Code",
-    body: "Analyze the current solution for correctness, time complexity, space complexity, edge cases, and likely failure points.",
+    body: "Find logical bugs, runtime risks, edge-case failures, code-quality issues, and interview readiness gaps.",
     meta: "Ctrl+Enter",
   },
   {
     title: "Analyze",
-    body: "Understand the approach, complexity trend, likely TLE risks, and correctness confidence before submitting.",
-    meta: "DSA review",
+    body: "Understand the detected pattern, approach, time and space complexity, better alternatives, and interview explanation.",
+    meta: "Complexity graph",
   },
   {
     title: "Dry Run",
-    body: "Trace variables step by step through loops, arrays, queues, visited states, and answer updates.",
-    meta: "Step table",
+    body: "Generate a detailed step table, variable watch, state snapshots, output prediction, and ask questions while learning.",
+    meta: "Mentor chat",
   },
   {
-    title: "Visualize",
-    body: "See graph and tree state for BFS, DFS, recursion, traversal, and shortest path problems.",
-    meta: "Graph view",
-  },
-  {
-    title: "History",
-    body: "Keep a local/database-backed trail of reviewed solutions so you can revisit earlier attempts.",
-    meta: "Reviews",
+    title: "Test Cases",
+    body: "Generate sample, edge, hidden-risk, and stress cases to check whether your solution survives real submissions.",
+    meta: "Hidden cases",
   },
 ];
 
@@ -259,12 +259,12 @@ const faqs = [
   {
     question: "What is CodeFlow?",
     answer:
-      "CodeFlow is a visual DSA learning playground. It combines AI review, dry-run tables, graph animations, complexity curves, input formatting, and debugging views in one place.",
+      "CodeFlow is an AI-powered DSA code mentor. It combines review, algorithm analysis, complexity graphs, dry-run tables, mentor chat, and test-case generation in one focused workspace.",
   },
   {
     question: "Does CodeFlow execute code?",
     answer:
-      "No. CodeFlow is focused on analysis and visualization instead of executing arbitrary code. That makes the product sharper for learning algorithms, dry-running state changes, and understanding why a solution works.",
+      "No. CodeFlow focuses on static AI review, reasoning, dry-run mentoring, and test-case planning instead of executing arbitrary code.",
   },
   {
     question: "How do I review my code?",
@@ -279,17 +279,17 @@ const faqs = [
   {
     question: "What is the complexity analyzer?",
     answer:
-      "It explains expected time and space complexity using sample analysis data. Later it can be connected to static analysis or AI-backed code review.",
+      "It explains expected time and space complexity and shows a visual growth curve so you can understand why an approach may pass or fail constraints.",
   },
   {
     question: "What is the dry-run table?",
     answer:
-      "The dry-run table shows how important variables change step by step. It is designed for loops, arrays, queues, recursion, and dynamic programming traces.",
+      "The dry-run table shows important variables, state snapshots, likely output, and warnings step by step. You can also ask questions about the dry run in the mentor chat.",
   },
   {
     question: "Can this help with LeetCode practice?",
     answer:
-      "Yes. CodeFlow is designed around DSA workflows: AI review, dry-run tables, graph animations, complexity curves, and review history.",
+      "Yes. CodeFlow is designed around DSA workflows: AI review, dry-run tables, complexity curves, hidden test cases, and interview-ready explanations.",
   },
 ];
 
@@ -298,8 +298,8 @@ function InfoSections() {
     <section className="mx-auto mt-16 max-w-[1120px] space-y-16 pb-24">
       <ContentBlock
         eyebrow="About CodeFlow"
-        title="Visualize, trace, and understand DSA code"
-        body="CodeFlow is a DSA visualization playground for learners, interview prep, and competitive programming practice. It helps you inspect state changes, animate data structures, analyze complexity, and understand mistakes without wrestling with execution infrastructure."
+        title="Review, dry-run, and improve DSA code"
+        body="CodeFlow is an AI-powered DSA code mentor for learners, interview prep, and competitive programming practice. It helps you review correctness, understand complexity, walk through dry runs, ask follow-up questions, and prepare stronger test cases without pretending to execute arbitrary code."
       />
 
       <section>
@@ -315,15 +315,15 @@ function InfoSections() {
           </li>
           <li>
             <strong className="text-white">3. Add stdin:</strong> Paste input in the right panel
-            so dry-run and graph visualization can follow the same test case.
+            so the dry run can follow the same test case.
           </li>
           <li>
             <strong className="text-white">4. Review or reset:</strong> Click Review Code or press
             Ctrl+Enter. Use Reset to restore the selected language boilerplate.
           </li>
           <li>
-            <strong className="text-white">5. Analyze:</strong> Open the analysis tabs to review
-            dry runs, complexity trends, graph animations, and review history.
+            <strong className="text-white">5. Learn:</strong> Use Review, Analyze, Dry Run, and
+            Test Cases to understand the solution and improve it before submission.
           </li>
         </ol>
       </section>
@@ -332,7 +332,7 @@ function InfoSections() {
         <h2 className="text-[30px] font-bold leading-tight text-white">Supported Programming Languages</h2>
         <p className="mt-4 max-w-[900px] text-[17px] leading-8 text-zinc-300">
           Start with clean boilerplates for C++, Java, Python, and JavaScript. CodeFlow focuses on
-          language-aware review, dry-run generation, and visual traces rather than raw execution.
+          language-aware review, dry-run generation, complexity reasoning, and test-case planning rather than raw execution.
         </p>
         <div className="mt-5 flex flex-wrap gap-2">
           {languageTags.map((language) => (
@@ -371,9 +371,9 @@ function InfoSections() {
         <div className="mt-6 grid gap-5 md:grid-cols-2">
           {[
             ["No Setup Required", "Skip local setup. Open the page and start reasoning through a solution in seconds."],
-            ["Visualization-Ready Workspace", "Use Monaco as the input surface, then let CodeFlow turn the solution into dry runs, graphs, and state transitions."],
-            ["DSA-Focused Learning", "Use dry runs, graph views, variable watches, and complexity explanations while practicing."],
-            ["Fast Feedback", "See complexity, edge cases, visual traces, dry runs, and review history in one focused workflow."],
+            ["Mentor-Ready Workspace", "Use Monaco as the coding surface, then let CodeFlow review the solution, explain the approach, and guide your next improvement."],
+            ["DSA-Focused Learning", "Use dry runs, variable watches, complexity graphs, and interview explanations while practicing."],
+            ["Fast Feedback", "See correctness risks, edge cases, dry runs, test cases, and complexity insights in one focused workflow."],
           ].map(([title, body]) => (
             <article
               key={title}
@@ -389,19 +389,19 @@ function InfoSections() {
       <section>
         <h2 className="text-[30px] font-bold leading-tight text-white">Popular Language Guides</h2>
         <div className="mt-6 space-y-6">
-          <Guide title="C++ DSA Visualizer">
+          <Guide title="C++ DSA Code Mentor">
             Use the C++ boilerplate for competitive programming, STL practice, graph problems,
             dynamic programming, and interview-style DSA.
           </Guide>
-          <Guide title="Python DSA Visualizer">
+          <Guide title="Python DSA Code Mentor">
             Write quick scripts, solve algorithm problems, and test input parsing without leaving
             the browser.
           </Guide>
-          <Guide title="Java DSA Visualizer">
+          <Guide title="Java DSA Code Mentor">
             Practice class-based solutions, collections, queues, maps, and common interview
             templates.
           </Guide>
-          <Guide title="JavaScript DSA Visualizer">
+          <Guide title="JavaScript DSA Code Mentor">
             Review JavaScript snippets, test logic, and practice frontend-friendly problem solving in
             a compact visual workspace.
           </Guide>

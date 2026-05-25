@@ -20,7 +20,7 @@ export default function TerminalPanel() {
         <span className="h-4 w-4 rounded-full bg-red-500" />
         <span className="h-4 w-4 rounded-full bg-yellow-500" />
         <span className="h-4 w-4 rounded-full bg-green-500" />
-        <span className="ml-5 text-xl font-semibold text-zinc-300">Input & Review</span>
+        <span className="ml-5 text-xl font-semibold text-zinc-300">Terminal</span>
       </div>
 
       <div className="analysis-scroll h-[calc(100%-52px)] overflow-auto">
@@ -45,7 +45,7 @@ export default function TerminalPanel() {
             onChange={(event) => setStdin(event.target.value)}
             placeholder="Enter input here"
             spellCheck={false}
-            className="min-h-[128px] w-full resize-y rounded-md border border-white/[0.08] bg-[#151515] p-4 text-xl font-bold leading-8 text-white outline-none transition placeholder:text-zinc-700 focus:border-white/20"
+            className="min-h-[128px] w-full resize-y rounded-md border border-white/[0.08] bg-[#151515] p-4 font-mono text-lg font-semibold leading-8 text-white outline-none transition placeholder:text-zinc-700 focus:border-white/20"
           />
           {hasInput ? (
             <p className="mt-3 rounded-md border border-signal-blue/20 bg-signal-blue/10 p-3 text-sm leading-6 text-signal-blue">
