@@ -60,13 +60,27 @@ export default function UniversalVisualizer() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const loadDemo = (index: number) => {
+  const loadDemo = async (index: number) => {
     const demo = demos[index];
     setCode(demo.code);
     setLanguageHint(demo.languageHint);
     setStructuredInput(JSON.stringify(demo.structuredInput, null, 2));
     setResult(null);
     setError("");
+    setLoading(true);
+
+    try {
+      const payload = await requestTrace({
+        code: demo.code,
+        structuredInput: demo.structuredInput,
+        languageHint: demo.languageHint,
+      });
+      setResult(payload);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Trace generation failed.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const generateTrace = async () => {
@@ -79,17 +93,7 @@ export default function UniversalVisualizer() {
         parsedInput = JSON.parse(structuredInput);
       }
 
-      const response = await fetch("/api/trace", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "universal", code, structuredInput: parsedInput, languageHint }),
-      });
-      const payload = (await response.json()) as TraceResult;
-
-      if (!response.ok) {
-        throw new Error(payload.errors?.[0] ?? payload.fallbackMessage ?? "Trace generation failed.");
-      }
-
+      const payload = await requestTrace({ code, structuredInput: parsedInput, languageHint });
       setResult(payload);
     } catch (caught) {
       setError(caught instanceof SyntaxError ? "Structured input must be valid JSON." : caught instanceof Error ? caught.message : "Trace generation failed.");
@@ -179,6 +183,29 @@ export default function UniversalVisualizer() {
       </div>
     </div>
   );
+}
+
+async function requestTrace({
+  code,
+  structuredInput,
+  languageHint,
+}: {
+  code: string;
+  structuredInput: unknown;
+  languageHint: string;
+}) {
+  const response = await fetch("/api/trace", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: "universal", code, structuredInput, languageHint }),
+  });
+  const payload = (await response.json()) as TraceResult;
+
+  if (!response.ok) {
+    throw new Error(payload.errors?.[0] ?? payload.fallbackMessage ?? "Trace generation failed.");
+  }
+
+  return payload;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

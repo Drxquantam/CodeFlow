@@ -95,7 +95,7 @@ function ReviewCard({ runtime, memory }: { runtime: string; memory: string }) {
     "review.start()",
     `time.rating = ${timeStars}/5`,
     `space.rating = ${spaceStars}/5`,
-    `TLE.risk = "${review?.tleRisk ?? "medium"}"`,
+    `pattern = "${review?.detectedAlgorithm ?? "unknown"}"`,
   ];
 
   return (
@@ -160,12 +160,12 @@ function ReviewCard({ runtime, memory }: { runtime: string; memory: string }) {
           <MiniInsight
             icon={<ShieldCheck className="h-4 w-4" />}
             title="Correctness"
-            text={review?.approach ?? "Review generated successfully."}
+            text={review?.codeSummary ?? "Review generated successfully."}
           />
           <MiniInsight
             icon={<Sparkles className="h-4 w-4" />}
             title="Focus Next"
-            text={review?.mistakes?.[0] ?? review?.edgeCases?.[0] ?? "No major issue found. Try generating a dry run or visual trace next."}
+            text={review?.review?.bugs?.[0] ?? review?.review?.edgeCaseRisks?.[0] ?? "No major issue found. Try generating a dry run next."}
           />
         </div>
       </div>

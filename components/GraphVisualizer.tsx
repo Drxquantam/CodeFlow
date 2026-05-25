@@ -571,6 +571,15 @@ function normalizeTraceForVisualization(
     if (sortTrace) return sortTrace;
   }
 
+  if (
+    inputShape.kind === "array" &&
+    trace.visualType === "array" &&
+    trace.steps.some((step) => /merge|sort|sorted/i.test(`${step.action} ${step.note}`))
+  ) {
+    const sortTrace = buildMergeSortTrace(stdin);
+    if (sortTrace) return sortTrace;
+  }
+
   if (inputShape.kind === "scalar" && codeIntent.kind === "recursion") {
     const recursionTrace = buildRecursionTrace(stdin, codeIntent.functionName);
     if (recursionTrace) return recursionTrace;
@@ -672,6 +681,10 @@ function detectCodeIntent(code: string): CodeIntent {
     return { kind: "linked-list" };
   }
 
+  if (/merge\s*sort|mergeSort|mergesort|\bmerge\s*\(|\bsort\s*\(/i.test(code)) {
+    return { kind: "array-sort" };
+  }
+
   const recursiveFunction = findRecursiveFunctionName(code);
   if (recursiveFunction) {
     return { kind: "recursion", functionName: recursiveFunction };
@@ -687,10 +700,6 @@ function detectCodeIntent(code: string): CodeIntent {
 
   if (/unordered_map|map\s*<|target|complement|need\s*=|seen\./i.test(code)) {
     return { kind: "array-hash" };
-  }
-
-  if (/merge\s*sort|mergeSort|mergesort|\bmerge\s*\(|\bsort\s*\(/i.test(code)) {
-    return { kind: "array-sort" };
   }
 
   return { kind: "unknown" };

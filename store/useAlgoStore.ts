@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import type { CodeFlowAnalysisResult } from "@/types/codeflowAnalysis";
 
 export const boilerplates = {
   "C++": `#include <bits/stdc++.h>
@@ -46,18 +47,7 @@ export type SubmissionRecord = {
   createdAt: string;
 };
 
-export type CodeReview = {
-  approach?: string;
-  timeComplexity?: string;
-  timeExplanation?: string;
-  spaceComplexity?: string;
-  tleRisk?: "low" | "medium" | "high";
-  tleExplanation?: string;
-  mistakes?: string[];
-  edgeCases?: string[];
-  testIdeas?: string[];
-  confidence?: number;
-};
+export type CodeReview = CodeFlowAnalysisResult;
 
 type AlgoStore = {
   code: string;
@@ -177,28 +167,30 @@ export const useAlgoStore = create<AlgoStore>()(
       const output = [
         "AI Code Review",
         "",
-        `Correctness confidence: ${Math.round((result.confidence ?? 0.72) * 100)}%`,
-        `Time complexity: ${result.timeComplexity ?? "Unknown"}`,
-        `Space complexity: ${result.spaceComplexity ?? "Unknown"}`,
-        `TLE risk: ${result.tleRisk ?? "medium"}`,
+        `Algorithm: ${result.detectedAlgorithm ?? "Unknown"}`,
+        `Correctness: ${result.review?.scores?.correctness ?? "-"}/10`,
+        `Readability: ${result.review?.scores?.readability ?? "-"}/10`,
+        `Efficiency: ${result.review?.scores?.efficiency ?? "-"}/10`,
+        `Worst-case time: ${result.analysis?.timeComplexity?.worst ?? "Unknown"}`,
+        `Space: ${result.analysis?.spaceComplexity?.value ?? "Unknown"}`,
         "",
-        "Approach:",
-        result.approach ?? "No approach summary returned.",
+        "Summary:",
+        result.codeSummary ?? "No summary returned.",
         "",
-        "Complexity reasoning:",
-        result.timeExplanation ?? "No complexity explanation returned.",
+        "Interview explanation:",
+        result.analysis?.interviewExplanation ?? "No interview explanation returned.",
         "",
         "Likely issues:",
-        ...(result.mistakes?.length ? result.mistakes.map((item) => `- ${item}`) : ["- No obvious issue found."]),
+        ...(result.review?.bugs?.length ? result.review.bugs.map((item) => `- ${item}`) : ["- No obvious issue found."]),
         "",
         "Edge cases to test:",
-        ...(result.edgeCases?.length ? result.edgeCases.map((item) => `- ${item}`) : ["- Add boundary and empty-input cases."]),
+        ...(result.review?.edgeCaseRisks?.length ? result.review.edgeCaseRisks.map((item) => `- ${item}`) : ["- Add boundary and empty-input cases."]),
       ]
         .filter(Boolean)
         .join("\n");
-      const runtime = result.timeComplexity ?? "static";
-      const memory = result.spaceComplexity ?? "static";
-      const verdict = (result.confidence ?? 0) >= 0.75 ? "Analyzed" : "Needs Review";
+      const runtime = result.analysis?.timeComplexity?.worst ?? "static";
+      const memory = result.analysis?.spaceComplexity?.value ?? "static";
+      const verdict = (result.review?.scores?.correctness ?? 0) >= 7 ? "Analyzed" : "Needs Review";
       const submission = createSubmission({
         code,
         language,

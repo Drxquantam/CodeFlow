@@ -1,74 +1,48 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, Eye, Timer, Variable } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardList, FileSearch, Gauge, Lightbulb, Table2 } from "lucide-react";
 import { useState } from "react";
-import ComplexityPanel from "./ComplexityPanel";
-import DryRunTable from "./DryRunTable";
-import GraphVisualizer from "./GraphVisualizer";
-import RuntimeGraph from "./RuntimeGraph";
-import SubmissionHistory from "./SubmissionHistory";
-import UniversalVisualizer from "./visualizer/UniversalVisualizer";
 import { useAlgoStore } from "@/store/useAlgoStore";
-import type { TraceResponse } from "@/app/api/trace/route";
+import type { CodeFlowAnalysisResult } from "@/types/codeflowAnalysis";
 
-const tabs = ["Review", "Analyze", "Universal Trace", "Dry Run", "Visualize", "History"];
-const variables = ["i", "j", "ans", "queue", "visited", "distance"];
-
-type GroqAnalysis = {
-  approach?: string;
-  timeComplexity?: string;
-  timeExplanation?: string;
-  spaceComplexity?: string;
-  spaceBreakdown?: Array<{ name: string; complexity: string; reason: string }>;
-  tleRisk?: "low" | "medium" | "high";
-  tleExplanation?: string;
-  mistakes?: string[];
-  edgeCases?: string[];
-  testIdeas?: string[];
-  confidence?: number;
-};
+const tabs = ["Review", "Analyze", "Dry Run", "Test Cases"] as const;
+type TabName = (typeof tabs)[number];
 
 export default function AnalysisTabs() {
-  const [active, setActive] = useState("Analyze");
-  const [selectedVars, setSelectedVars] = useState(["i", "queue", "distance"]);
+  const [active, setActive] = useState<TabName>("Analyze");
   const code = useAlgoStore((state) => state.code);
   const language = useAlgoStore((state) => state.language);
   const stdin = useAlgoStore((state) => state.stdin);
-  const [trace, setTrace] = useState<TraceResponse | null>(null);
-  const [traceKey, setTraceKey] = useState("");
-  const [traceLoading, setTraceLoading] = useState(false);
-  const [traceError, setTraceError] = useState("");
-  const currentTraceKey = `${language}\n${stdin}\n${code}`;
-  const visibleTrace = traceKey === currentTraceKey ? trace : null;
+  const setStdin = useAlgoStore((state) => state.setStdin);
+  const [result, setResult] = useState<CodeFlowAnalysisResult | null>(null);
+  const [analysisKey, setAnalysisKey] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const currentKey = `${language}\n${stdin}\n${code}`;
+  const visibleResult = analysisKey === currentKey ? result : null;
 
-  const toggleVar = (name: string) => {
-    setSelectedVars((current) =>
-      current.includes(name) ? current.filter((item) => item !== name) : [...current, name],
-    );
-  };
-
-  const generateTrace = async () => {
-    setTraceLoading(true);
-    setTraceError("");
+  const runAnalysis = async () => {
+    setLoading(true);
+    setError("");
 
     try {
-      const response = await fetch("/api/trace", {
+      const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code, language, stdin }),
       });
-      const result = (await response.json()) as TraceResponse & { error?: string };
+      const payload = (await response.json()) as CodeFlowAnalysisResult & { error?: string };
 
       if (!response.ok) {
-        throw new Error(result.error ?? "Trace generation failed.");
+        throw new Error(payload.error ?? "Analysis failed.");
       }
 
-      setTrace(result);
-      setTraceKey(currentTraceKey);
-    } catch (error) {
-      setTraceError(error instanceof Error ? error.message : "Trace generation failed.");
+      setResult(payload);
+      setAnalysisKey(currentKey);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Analysis failed.");
     } finally {
-      setTraceLoading(false);
+      setLoading(false);
     }
   };
 
@@ -89,194 +63,364 @@ export default function AnalysisTabs() {
             {tab}
           </button>
         ))}
+        <button
+          type="button"
+          onClick={runAnalysis}
+          disabled={loading || !code.trim()}
+          className="ml-auto h-9 rounded-md bg-white px-4 text-sm font-bold text-black transition hover:bg-zinc-200 disabled:cursor-wait disabled:bg-zinc-500"
+        >
+          {loading ? "Analyzing..." : "Analyze Code"}
+        </button>
       </div>
 
       <div className="analysis-scroll max-h-[78vh] min-h-[640px] overflow-auto p-4">
-        {active === "Review" ? <RunOverview selectedVars={selectedVars} toggleVar={toggleVar} /> : null}
-        {active === "Analyze" ? <AnalyzePanel /> : null}
-        {active === "Universal Trace" ? <UniversalVisualizer /> : null}
+        {error ? (
+          <p className="mb-4 rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+            {error}
+          </p>
+        ) : null}
+
+        {active === "Review" ? <ReviewTab result={visibleResult} /> : null}
+        {active === "Analyze" ? <AnalyzeTab result={visibleResult} /> : null}
         {active === "Dry Run" ? (
-          <DryRunTable
-            trace={visibleTrace}
-            loading={traceLoading}
-            error={traceError}
-            onGenerate={generateTrace}
-          />
-        ) : null}
-        {active === "Visualize" ? (
-          <GraphVisualizer
-            trace={visibleTrace}
-            loading={traceLoading}
-            error={traceError}
-            onGenerate={generateTrace}
+          <DryRunTab
+            result={visibleResult}
             stdin={stdin}
-            code={code}
+            setStdin={setStdin}
+            onAnalyze={runAnalysis}
+            loading={loading}
           />
         ) : null}
-        {active === "History" ? <SubmissionHistory /> : null}
+        {active === "Test Cases" ? <TestCasesTab result={visibleResult} /> : null}
       </div>
     </div>
   );
 }
 
-function AnalyzePanel() {
-  const code = useAlgoStore((state) => state.code);
-  const language = useAlgoStore((state) => state.language);
-  const stdin = useAlgoStore((state) => state.stdin);
-  const [analysis, setAnalysis] = useState<GroqAnalysis | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+function ReviewTab({ result }: { result: CodeFlowAnalysisResult | null }) {
+  if (!result) {
+    return <EmptyState text="Paste code and click Analyze to get a review." />;
+  }
 
-  const runAnalysis = async () => {
-    setLoading(true);
-    setError("");
-
-    try {
-      const response = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, language, stdin }),
-      });
-      const result = (await response.json()) as GroqAnalysis & { error?: string };
-
-      if (!response.ok) {
-        throw new Error(result.error ?? "Analysis failed.");
-      }
-
-      setAnalysis(result);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Analysis failed.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const review = result.review;
 
   return (
-    <div className="grid gap-4 2xl:grid-cols-[1fr_1fr]">
+    <div className="grid gap-4 xl:grid-cols-[1fr_0.8fr]">
       <div className="space-y-4">
-        <div className="rounded-md border border-white/[0.08] bg-[#111] p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h3 className="text-sm font-bold uppercase tracking-[0.18em] text-zinc-400">
-                Groq AI Analysis
-              </h3>
-              <p className="mt-2 text-sm leading-6 text-zinc-500">
-                Uses your server-side Groq API key to review the current editor code.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={runAnalysis}
-              disabled={loading}
-              className="rounded-md bg-white px-4 py-2 text-sm font-bold text-black transition hover:bg-zinc-200 disabled:cursor-wait disabled:bg-zinc-500"
-            >
-              {loading ? "Analyzing..." : "Analyze Code"}
-            </button>
-          </div>
-          {error ? (
-            <p className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
-              {error}
-            </p>
-          ) : null}
-        </div>
-
-        <ComplexityPanel analysis={analysis} />
+        <Section title="Bug Detection" icon={<AlertTriangle className="h-4 w-4" />}>
+          <BulletList items={review?.bugs} empty="No obvious bugs were reported." />
+        </Section>
+        <Section title="Code Quality" icon={<FileSearch className="h-4 w-4" />}>
+          <BulletList items={review?.qualitySuggestions} empty="No specific quality suggestions were reported." />
+        </Section>
+        <Section title="Edge Case Risks" icon={<ClipboardList className="h-4 w-4" />}>
+          <BulletList items={review?.edgeCaseRisks} empty="No edge case risks were reported." />
+        </Section>
       </div>
+
       <div className="space-y-4">
-        <RuntimeGraph complexity={analysis?.timeComplexity} />
-        <Insight title="Code-to-Approach Summary" icon={<Eye className="h-4 w-4" />}>
-          {analysis?.approach ?? "Run Groq analysis to generate a real approach summary for the current code."}
-        </Insight>
-        <Insight title="Why TLE? Explainer" icon={<Timer className="h-4 w-4" />}>
-          {analysis?.tleExplanation ?? "Run Groq analysis to estimate TLE risk from loops, constraints, and data structures."}
-        </Insight>
-        <Insight title="Edge Cases" icon={<AlertTriangle className="h-4 w-4" />}>
-          {analysis?.edgeCases?.length
-            ? analysis.edgeCases.join(" · ")
-            : "Run analysis to generate edge cases from your code."}
-        </Insight>
+        <ScoreGrid scores={review?.scores} />
+        <Section title="Improved Code" icon={<CheckCircle2 className="h-4 w-4" />}>
+          {review?.improvedCode?.trim() ? (
+            <pre className="max-h-[520px] overflow-auto rounded-md bg-black p-3 font-mono text-xs leading-5 text-zinc-300">
+              {review.improvedCode}
+            </pre>
+          ) : (
+            <p className="text-sm leading-6 text-zinc-500">No rewrite needed or no improved version was returned.</p>
+          )}
+        </Section>
       </div>
     </div>
   );
 }
 
-function RunOverview({
-  selectedVars,
-  toggleVar,
-}: {
-  selectedVars: string[];
-  toggleVar: (name: string) => void;
-}) {
+function AnalyzeTab({ result }: { result: CodeFlowAnalysisResult | null }) {
+  if (!result) {
+    return <EmptyState text="Paste code to understand algorithm and complexity." />;
+  }
+
   return (
     <div className="grid gap-4 xl:grid-cols-2">
-      <div className="rounded-md border border-white/[0.08] bg-[#111] p-4">
-        <h3 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.18em] text-zinc-400">
-          <Variable className="h-4 w-4" /> Variable Watch
-        </h3>
-        <div className="flex flex-wrap gap-2">
-          {variables.map((name) => (
-            <button
-              key={name}
-              type="button"
-              onClick={() => toggleVar(name)}
-              className={`rounded-full border px-3 py-1.5 text-sm transition ${
-                selectedVars.includes(name)
-                  ? "border-signal-blue bg-signal-blue/15 text-white"
-                  : "border-white/[0.1] bg-white/[0.03] text-zinc-500"
-              }`}
-            >
-              {name}
-            </button>
-          ))}
+      <Section title="Code Summary" icon={<FileSearch className="h-4 w-4" />}>
+        <p className="text-sm leading-6 text-zinc-300">{result.codeSummary || "No summary returned."}</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Chip label={result.language || "language unknown"} />
+          <Chip label={result.detectedAlgorithm || "pattern unknown"} />
         </div>
-        <pre className="mt-4 rounded-md bg-black p-3 text-sm leading-6 text-zinc-300">
-          {selectedVars.map((name) => `${name}: ${mockVarValue(name)}`).join("\n")}
-        </pre>
-      </div>
+      </Section>
 
-      <div className="space-y-3">
-        <Insight title="State Snapshot Debugging" icon={<CheckCircle2 className="h-4 w-4" />}>
-          Snapshot 04 captured queue=[(1,1),(0,2)], distance[1][1]=2, visited count=8.
-        </Insight>
-        <Insight title="Anti-Cheat Learning Mode" icon={<AlertTriangle className="h-4 w-4" />}>
-          Hints reveal one invariant at a time until you explain why BFS guarantees shortest paths.
-        </Insight>
-        <Insight title="Hidden Test Failure Explanation" icon={<AlertTriangle className="h-4 w-4" />}>
-          Fails when all cells are blocked unless the queue-empty output convention is handled.
-        </Insight>
-      </div>
+      <Section title="Algorithm / Pattern Detected" icon={<Lightbulb className="h-4 w-4" />}>
+        <p className="text-2xl font-bold text-white">{result.detectedAlgorithm || "Unknown"}</p>
+      </Section>
+
+      <Section title="Step-by-Step Approach" icon={<ClipboardList className="h-4 w-4" />}>
+        <NumberedList items={result.analysis?.approach} empty="No approach steps returned." />
+      </Section>
+
+      <Section title="Complexity" icon={<Gauge className="h-4 w-4" />}>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Metric label="Best" value={result.analysis?.timeComplexity.best || "-"} />
+          <Metric label="Average" value={result.analysis?.timeComplexity.average || "-"} />
+          <Metric label="Worst" value={result.analysis?.timeComplexity.worst || "-"} />
+        </div>
+        <p className="mt-3 text-sm leading-6 text-zinc-500">{result.analysis?.timeComplexity.explanation || "No time complexity explanation returned."}</p>
+        <div className="mt-4 rounded-md border border-white/[0.08] bg-black/35 p-3">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-zinc-500">Space Complexity</p>
+          <p className="mt-2 text-lg font-bold text-white">{result.analysis?.spaceComplexity.value || "-"}</p>
+          <p className="mt-1 text-sm leading-6 text-zinc-500">{result.analysis?.spaceComplexity.explanation || "No space explanation returned."}</p>
+        </div>
+      </Section>
+
+      <Section title="Better Approach" icon={<CheckCircle2 className="h-4 w-4" />}>
+        <p className="text-sm leading-6 text-zinc-300">{result.analysis?.betterApproach || "No better approach suggestion returned."}</p>
+      </Section>
+
+      <Section title="Interview Explanation" icon={<Lightbulb className="h-4 w-4" />}>
+        <p className="text-sm leading-6 text-zinc-300">{result.analysis?.interviewExplanation || "No interview explanation returned."}</p>
+      </Section>
     </div>
   );
 }
 
-function Insight({
-  title,
-  icon,
-  children,
+function DryRunTab({
+  result,
+  stdin,
+  setStdin,
+  onAnalyze,
+  loading,
 }: {
-  title: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
+  result: CodeFlowAnalysisResult | null;
+  stdin: string;
+  setStdin: (value: string) => void;
+  onAnalyze: () => void;
+  loading: boolean;
 }) {
+  const dryRun = result?.dryRun;
+
   return (
-    <div className="rounded-md border border-white/[0.08] bg-[#111] p-4">
-      <h3 className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.16em] text-zinc-400">
+    <div className="space-y-4">
+      <div className="rounded-md border border-white/[0.08] bg-[#111] p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-[0.18em] text-zinc-400">Input</h3>
+            <p className="mt-2 text-sm leading-6 text-zinc-500">Paste custom input, then analyze again to generate a step-by-step dry run.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onAnalyze}
+            disabled={loading}
+            className="rounded-md bg-white px-4 py-2 text-sm font-bold text-black transition hover:bg-zinc-200 disabled:cursor-wait disabled:bg-zinc-500"
+          >
+            {loading ? "Generating..." : "Generate Dry Run"}
+          </button>
+        </div>
+        <textarea
+          value={stdin}
+          onChange={(event) => setStdin(event.target.value)}
+          placeholder="Enter input here..."
+          className="mt-4 min-h-32 w-full resize-y rounded-md border border-white/[0.1] bg-black/40 p-3 font-mono text-sm leading-6 text-zinc-200 outline-none"
+        />
+      </div>
+
+      {!result ? <EmptyState text="Paste code and input to generate a step-by-step dry run." /> : null}
+
+      {dryRun?.warnings?.length ? (
+        <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm text-yellow-100">
+          {dryRun.warnings.join(" ")}
+        </div>
+      ) : null}
+
+      {dryRun && dryRun.rows.length > 0 ? (
+        <div className="overflow-auto rounded-md border border-white/[0.08] bg-[#111]">
+          <table className="w-full min-w-[900px] border-collapse text-left text-sm">
+            <thead className="bg-white/[0.04] text-xs uppercase tracking-[0.16em] text-zinc-500">
+              <tr>
+                {dryRun.columns.map((column) => (
+                  <th key={column} className="px-3 py-3">{column}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/[0.06]">
+              {dryRun.rows.map((row, index) => (
+                <tr key={`${index}-${JSON.stringify(row)}`} className="text-zinc-300">
+                  {dryRun.columns.map((column) => (
+                    <td key={column} className="px-3 py-3 align-top">
+                      {row[column] ?? "-"}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : result ? (
+        <EmptyState text="No dry-run rows returned. Add input and analyze again." />
+      ) : null}
+
+      {dryRun ? (
+        <div className="grid gap-4 xl:grid-cols-3">
+          <Section title="Variable Watch" icon={<Gauge className="h-4 w-4" />}>
+            {dryRun.variableWatch?.length ? (
+              <div className="space-y-2">
+                {dryRun.variableWatch.map((item) => (
+                  <pre key={item.step} className="rounded-md bg-black/45 p-3 font-mono text-xs leading-5 text-zinc-300">
+                    Step {item.step}: {formatVariables(item.variables)}
+                  </pre>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-zinc-500">No variable watch returned.</p>
+            )}
+          </Section>
+          <Section title="State Snapshots" icon={<Table2 className="h-4 w-4" />}>
+            {dryRun.snapshots?.length ? (
+              <div className="space-y-3">
+                {dryRun.snapshots.map((snapshot) => (
+                  <div key={`${snapshot.step}-${snapshot.title}`} className="rounded-md border border-white/[0.08] bg-black/35 p-3">
+                    <p className="font-semibold text-white">Step {snapshot.step}: {snapshot.title}</p>
+                    <p className="mt-1 text-sm leading-6 text-zinc-500">{snapshot.description}</p>
+                    {snapshot.variables ? <p className="mt-2 font-mono text-xs text-signal-green">{formatVariables(snapshot.variables)}</p> : null}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-zinc-500">No snapshots returned.</p>
+            )}
+          </Section>
+          <Section title="Output Prediction" icon={<CheckCircle2 className="h-4 w-4" />}>
+            <pre className="rounded-md bg-black/45 p-3 font-mono text-sm leading-6 text-zinc-300">{dryRun.finalOutput || "No final output returned."}</pre>
+          </Section>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function TestCasesTab({ result }: { result: CodeFlowAnalysisResult | null }) {
+  if (!result) {
+    return <EmptyState text="Paste code to generate sample, edge, and hidden test cases." />;
+  }
+
+  const cases = result.testCases ?? [];
+  if (!cases.length) {
+    return <EmptyState text="No test cases were returned. Analyze again with more code context." />;
+  }
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-2">
+      {cases.map((testCase) => (
+        <div key={`${testCase.type}-${testCase.title}`} className="rounded-md border border-white/[0.08] bg-[#111] p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h3 className="text-lg font-bold text-white">{testCase.title}</h3>
+            <Chip label={testCase.type} />
+          </div>
+          <p className="mb-3 text-sm leading-6 text-zinc-500">{testCase.explanation}</p>
+          <div className="grid gap-3 md:grid-cols-2">
+            <pre className="rounded-md bg-black/45 p-3 font-mono text-xs leading-5 text-zinc-300">{testCase.input}</pre>
+            <pre className="rounded-md bg-black/45 p-3 font-mono text-xs leading-5 text-signal-green">{testCase.expectedOutput || "Expected output not safely inferable."}</pre>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="rounded-md border border-white/[0.08] bg-[#111] p-4">
+      <h3 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.16em] text-zinc-400">
         {icon}
         {title}
       </h3>
-      <p className="text-sm leading-6 text-zinc-500">{children}</p>
+      {children}
+    </section>
+  );
+}
+
+function EmptyState({ text }: { text: string }) {
+  return (
+    <div className="rounded-md border border-dashed border-white/[0.12] bg-[#111] p-8 text-center text-sm leading-6 text-zinc-500">
+      {text}
     </div>
   );
 }
 
-function mockVarValue(name: string) {
-  const values: Record<string, string> = {
-    i: "2",
-    j: "1",
-    ans: "[0,1,2,3]",
-    queue: "[(1,2),(2,1)]",
-    visited: "14/16",
-    distance: "matrix<4x4>",
-  };
-  return values[name] ?? "tracked";
+function BulletList({ items, empty }: { items?: string[]; empty: string }) {
+  if (!items?.length) {
+    return <p className="text-sm leading-6 text-zinc-500">{empty}</p>;
+  }
+
+  return (
+    <ul className="space-y-2 text-sm leading-6 text-zinc-300">
+      {items.map((item) => (
+        <li key={item} className="flex gap-2">
+          <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-signal-blue" />
+          <span>{item}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function NumberedList({ items, empty }: { items?: string[]; empty: string }) {
+  if (!items?.length) {
+    return <p className="text-sm leading-6 text-zinc-500">{empty}</p>;
+  }
+
+  return (
+    <ol className="space-y-2 text-sm leading-6 text-zinc-300">
+      {items.map((item, index) => (
+        <li key={item} className="flex gap-3">
+          <span className="font-mono text-signal-blue">{index + 1}.</span>
+          <span>{item}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function ScoreGrid({ scores }: { scores?: NonNullable<CodeFlowAnalysisResult["review"]>["scores"] }) {
+  const items = [
+    ["Correctness", scores?.correctness],
+    ["Readability", scores?.readability],
+    ["Efficiency", scores?.efficiency],
+    ["Interview", scores?.interviewReadiness],
+  ] as const;
+
+  return (
+    <section className="rounded-md border border-white/[0.08] bg-[#111] p-4">
+      <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-zinc-400">Review Score</h3>
+      <div className="grid grid-cols-2 gap-3">
+        {items.map(([label, value]) => (
+          <div key={label} className="rounded-md border border-white/[0.08] bg-black/35 p-3">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">{label}</p>
+            <p className="mt-2 text-2xl font-bold text-white">{value ?? "-"}/10</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-white/[0.08] bg-black/35 p-3">
+      <p className="text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">{label}</p>
+      <p className="mt-2 text-lg font-bold text-white">{value}</p>
+    </div>
+  );
+}
+
+function Chip({ label }: { label: string }) {
+  return (
+    <span className="rounded-full border border-white/[0.1] bg-white/[0.04] px-3 py-1 text-xs font-bold text-zinc-300">
+      {label}
+    </span>
+  );
+}
+
+function formatVariables(variables: Record<string, string>) {
+  return Object.entries(variables)
+    .map(([key, value]) => `${key}=${value}`)
+    .join(", ");
 }

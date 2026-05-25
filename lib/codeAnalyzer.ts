@@ -12,7 +12,8 @@ export function analyzeCodeOrQuestion(payload: AnalyzePayload): AnalyzerResult {
   const question = payload.question ?? "";
   const text = `${code}\n${question}`;
   const language = detectLanguage(code, payload.languageHint);
-  const algorithm = detectAlgorithm(text);
+  const structuredAlgorithm = extractStructuredAlgorithm(payload.structuredInput);
+  const algorithm = structuredAlgorithm ?? detectAlgorithm(text);
   const dataStructure = detectDataStructure(text, algorithm);
   const requiredInput = getRequiredInput(algorithm);
   const hasStructuredInput = payload.structuredInput != null;
@@ -32,6 +33,15 @@ export function analyzeCodeOrQuestion(payload: AnalyzePayload): AnalyzerResult {
     warnings: strategy === "fallback" ? ["No supported deterministic trace strategy was found."] : [],
     requiredInput: hasStructuredInput ? [] : requiredInput,
   };
+}
+
+function extractStructuredAlgorithm(structuredInput: unknown) {
+  if (!structuredInput || typeof structuredInput !== "object" || Array.isArray(structuredInput)) {
+    return undefined;
+  }
+
+  const algorithm = (structuredInput as { algorithm?: unknown }).algorithm;
+  return typeof algorithm === "string" ? algorithm.toLowerCase().replace(/_/g, " ").trim() : undefined;
 }
 
 function detectLanguage(code: string, hint?: string): AnalyzerResult["language"] {

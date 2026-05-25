@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { askGroqJson } from "@/lib/groq";
+import type { CodeFlowAnalysisResult } from "@/types/codeflowAnalysis";
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
     }
 
     const prompt = buildAnalysisPrompt(body.language ?? "unknown", body.code, body.stdin ?? "");
-    const analysis = await askGroqJson(prompt);
+    const analysis = await askGroqJson(prompt, 2600) as CodeFlowAnalysisResult;
     return NextResponse.json(analysis);
   } catch (error) {
     return NextResponse.json(
@@ -28,24 +29,79 @@ export async function POST(request: NextRequest) {
 }
 
 function buildAnalysisPrompt(language: string, code: string, stdin: string) {
-  return `Review this ${language} program for DSA practice. Do not pretend to execute it.
-Focus on whether the algorithm appears logically correct, what complexity it has, what edge cases may fail, and what state changes would be useful to visualize.
-The code may be LeetCode/GFG style with only a Solution class and no main function. Treat that as valid and review the algorithm itself.
+  return `You are CodeFlow, an AI-powered DSA Code Mentor.
+Review and analyze this ${language} program for DSA practice.
+The code may be LeetCode/GFG style with only a Solution class and no main function. Treat that as valid.
+
+Important rules:
+- Return only valid JSON.
+- Do not invent exact runtime states if you cannot know them.
+- If stdin is provided, create a useful dry run from that input.
+- If exact dry run depends on runtime/compiler behavior, clearly say "AI-generated dry run; verify with compiler for exact runtime behavior." in dryRun.warnings.
+- If input is missing, dryRun.rows should be [] and dryRun.warnings should ask for input.
+- Do not use placeholder or demo values.
+- Keep improvedCode in the same language as the user code.
+- Do not rewrite code unless it fixes correctness, clarity, or meaningful performance.
 
 Return JSON with exactly these keys:
 {
-  "approach": "2-4 sentence explanation of what the code is trying to do and whether it looks correct",
-  "timeComplexity": "Big-O",
-  "timeExplanation": "short explanation",
-  "spaceComplexity": "Big-O",
-  "spaceBreakdown": [{"name":"string","complexity":"string","reason":"string"}],
-  "tleRisk": "low | medium | high",
-  "tleExplanation": "short explanation",
-  "mistakes": ["specific bug or risk"],
-  "edgeCases": ["specific edge case"],
-  "testIdeas": ["input idea"],
-  "confidence": 0.0
+  "language": "string",
+  "detectedAlgorithm": "string",
+  "codeSummary": "string",
+  "review": {
+    "bugs": ["string"],
+    "qualitySuggestions": ["string"],
+    "edgeCaseRisks": ["string"],
+    "improvedCode": "string or empty string",
+    "scores": {
+      "correctness": 0,
+      "readability": 0,
+      "efficiency": 0,
+      "interviewReadiness": 0
+    }
+  },
+  "analysis": {
+    "approach": ["string"],
+    "timeComplexity": {
+      "best": "string or empty string",
+      "average": "string or empty string",
+      "worst": "string",
+      "explanation": "string"
+    },
+    "spaceComplexity": {
+      "value": "string",
+      "explanation": "string"
+    },
+    "betterApproach": "string",
+    "interviewExplanation": "string"
+  },
+  "dryRun": {
+    "input": "string",
+    "columns": ["string"],
+    "rows": [{"columnName": "string"}],
+    "variableWatch": [{"step": 1, "variables": {"name": "value"}}],
+    "snapshots": [{"step": 1, "title": "string", "description": "string", "variables": {"name": "value"}}],
+    "finalOutput": "string",
+    "warnings": ["string"]
+  },
+  "testCases": [
+    {
+      "title": "string",
+      "input": "string",
+      "expectedOutput": "string",
+      "explanation": "string",
+      "type": "sample"
+    }
+  ]
 }
+
+Test case type must be one of: "sample", "edge", "hidden-risk", "stress".
+Suggested dry-run columns by pattern:
+- arrays: Step, i, j, condition, action, array/state, output/ans
+- graph BFS/DFS: Step, current node, neighbor checked, visited, queue/stack, action
+- recursion: Step, function call, parameters, stack depth, return value, action
+- DP: Step, i, j, formula, dp update, table state
+- binary search: Step, low, mid, high, nums[mid], condition, action
 
 stdin:
 ${stdin || "(none)"}
