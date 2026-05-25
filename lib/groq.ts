@@ -40,7 +40,18 @@ export async function askGroqJson(prompt: string, maxTokens = 1600) {
   });
 
   if (!response.ok) {
-    throw new Error(`Groq request failed with HTTP ${response.status}.`);
+    const detail = await response.text().catch(() => "");
+    throw new Error(
+      [
+        `Groq request failed with HTTP ${response.status}.`,
+        response.status === 403
+          ? "The API key is present, but Groq refused access. Check project/org model permissions, the selected GROQ_MODEL, and whether this key is enabled for the deployed environment."
+          : "",
+        detail ? `Groq response: ${detail.slice(0, 500)}` : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
+    );
   }
 
   const groq = (await response.json()) as GroqChatResponse;
