@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { generateTraceFromAnalysis } from "@/lib/algorithmMapper";
+import { analyzeCodeOrQuestion } from "@/lib/codeAnalyzer";
 import { askGroqJson } from "@/lib/groq";
 import { normalizeInputForVisualizer } from "@/lib/inputNormalizer";
 
@@ -38,9 +40,29 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as {
       code?: string;
+      question?: string;
       language?: string;
+      languageHint?: string;
       stdin?: string;
+      structuredInput?: unknown;
+      mode?: string;
     };
+
+    if (body.mode === "universal" || body.structuredInput != null || body.question) {
+      const analysis = analyzeCodeOrQuestion({
+        code: body.code,
+        question: body.question,
+        structuredInput: body.structuredInput,
+        languageHint: body.languageHint ?? body.language,
+      });
+      const result = await generateTraceFromAnalysis({
+        analysis,
+        structuredInput: body.structuredInput,
+        code: body.code,
+      });
+
+      return NextResponse.json(result);
+    }
 
     if (!body.code?.trim()) {
       return NextResponse.json({ error: "Code is required." }, { status: 400 });

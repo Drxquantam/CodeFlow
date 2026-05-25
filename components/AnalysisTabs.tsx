@@ -7,10 +7,11 @@ import DryRunTable from "./DryRunTable";
 import GraphVisualizer from "./GraphVisualizer";
 import RuntimeGraph from "./RuntimeGraph";
 import SubmissionHistory from "./SubmissionHistory";
+import UniversalVisualizer from "./visualizer/UniversalVisualizer";
 import { useAlgoStore } from "@/store/useAlgoStore";
 import type { TraceResponse } from "@/app/api/trace/route";
 
-const tabs = ["Review", "Analyze", "Dry Run", "Visualize", "History"];
+const tabs = ["Review", "Analyze", "Universal Trace", "Dry Run", "Visualize", "History"];
 const variables = ["i", "j", "ans", "queue", "visited", "distance"];
 
 type GroqAnalysis = {
@@ -93,6 +94,7 @@ export default function AnalysisTabs() {
       <div className="analysis-scroll max-h-[78vh] min-h-[640px] overflow-auto p-4">
         {active === "Review" ? <RunOverview selectedVars={selectedVars} toggleVar={toggleVar} /> : null}
         {active === "Analyze" ? <AnalyzePanel /> : null}
+        {active === "Universal Trace" ? <UniversalVisualizer /> : null}
         {active === "Dry Run" ? (
           <DryRunTable
             trace={visibleTrace}

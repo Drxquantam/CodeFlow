@@ -1,0 +1,16 @@
+{
+  "stripe.stripe": {
+    "version": "2026-02-25.clover",
+    "sandbox_endpoint": "https://api.stripe.com",
+    "production_endpoint": "https://api.stripe.com",
+    "methods": 1121,
+    "workflows": 0
+  },
+  "stripe.stripe_sdk": {
+    "version": "2026-02-25.clover",
+    "sandbox_endpoint": "https://api.stripe.com",
+    "production_endpoint": "https://api.stripe.com",
+    "methods": 1121,
+    "workflows": 0
+  }
+}
