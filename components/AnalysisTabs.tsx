@@ -64,17 +64,19 @@ export default function AnalysisTabs() {
             {tab}
           </button>
         ))}
-        <button
-          type="button"
-          onClick={runAnalysis}
-          disabled={loading || !code.trim()}
-          className="ml-auto h-9 rounded-md bg-white px-4 text-sm font-bold text-black transition hover:bg-zinc-200 disabled:cursor-wait disabled:bg-zinc-500"
-        >
-          {loading ? "Analyzing..." : "Analyze Code"}
-        </button>
+        {active === "Analyze" ? (
+          <button
+            type="button"
+            onClick={runAnalysis}
+            disabled={loading || !code.trim()}
+            className="ml-auto h-9 rounded-md bg-white px-4 text-sm font-bold text-black transition hover:bg-zinc-200 disabled:cursor-wait disabled:bg-zinc-500"
+          >
+            {loading ? "Analyzing..." : "Analyze Code"}
+          </button>
+        ) : null}
       </div>
 
-      <div className="analysis-scroll max-h-[78vh] min-h-[640px] overflow-auto p-4">
+      <div className="analysis-scroll max-h-[78vh] min-h-[540px] overflow-auto p-4">
         {error ? (
           <p className="mb-4 rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
             {error}
@@ -142,7 +144,7 @@ function AnalyzeTab({ result }: { result: CodeFlowAnalysisResult | null }) {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <AnalyzeVerdict result={result} />
       <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
         <ApproachReview result={result} />
@@ -177,21 +179,10 @@ function DryRunTab({
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 xl:grid-cols-[1fr_0.8fr]">
-        <div className="rounded-md border border-white/[0.08] bg-[#111] p-4">
-          <h3 className="text-sm font-bold uppercase tracking-[0.18em] text-zinc-400">Code Context</h3>
-          <p className="mt-2 text-sm leading-6 text-zinc-500">
-            The dry run uses the code from the editor. Paste or edit code on the left, then provide input here.
-          </p>
-          <pre className="mt-3 max-h-40 overflow-auto rounded-md border border-white/[0.08] bg-black/40 p-3 font-mono text-xs leading-5 text-zinc-300">
-            {code.trim() || "No code pasted yet."}
-          </pre>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-          <InfoCard label="Pattern Detected" value={prettyPattern(detectedPattern)} />
-          <InfoCard label="Dry Run Confidence" value={dryRun?.confidence || "Not generated yet"} />
-          <InfoCard label="Input Used" value={inputUsed.trim() || "Input is required for a reliable dry run."} mono />
-        </div>
+      <div className="grid gap-3 md:grid-cols-3">
+        <InfoCard label="Pattern Detected" value={prettyPattern(detectedPattern)} />
+        <InfoCard label="Dry Run Confidence" value={dryRun?.confidence || "Not generated yet"} />
+        <InfoCard label="Input Used" value={inputUsed.trim() || "Input is required for a reliable dry run."} mono compact />
       </div>
 
       <div className="rounded-md border border-white/[0.08] bg-[#111] p-4">
@@ -438,25 +429,25 @@ function ComplexityCurve({ result }: { result: CodeFlowAnalysisResult }) {
   const allCurves = buildAllComplexityCurves(worst);
 
   return (
-    <section className="rounded-md border border-white/[0.08] bg-[#083f42] p-5 xl:col-span-2">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+    <section className="rounded-md border border-white/[0.08] bg-[#083f42] p-4 xl:col-span-2">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="flex items-center gap-2 text-3xl font-bold text-white">
+          <h3 className="flex items-center gap-2 text-xl font-bold text-white">
             <Gauge className="h-4 w-4" />
             Big-O Complexity
           </h3>
-          <p className="mt-2 text-sm leading-6 text-zinc-200">
+          <p className="mt-1 text-xs leading-5 text-zinc-200">
             Current code is highlighted as {worst || "unknown complexity"}.
           </p>
         </div>
         <Chip label={curve.label} />
       </div>
-      <div className="h-[360px] rounded-md border border-white/[0.14] bg-[#063638] p-3">
+      <div className="h-[220px] rounded-md border border-white/[0.14] bg-[#063638] p-2">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={allCurves} margin={{ left: 8, right: 24, top: 12, bottom: 8 }}>
+          <LineChart data={allCurves} margin={{ left: 0, right: 14, top: 8, bottom: 0 }}>
             <CartesianGrid stroke="rgba(255,255,255,0.25)" />
             <XAxis dataKey="n" stroke="#d4d4d8" tick={{ fontSize: 12 }} />
-            <YAxis stroke="#d4d4d8" tick={{ fontSize: 12 }} domain={[0, 1000]} label={{ value: "Operations", angle: -90, position: "insideLeft", fill: "#f4f4f5" }} />
+            <YAxis stroke="#d4d4d8" tick={{ fontSize: 11 }} domain={[0, 1000]} width={42} />
             <Tooltip
               contentStyle={{ background: "#09090b", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8 }}
               labelStyle={{ color: "#f4f4f5" }}
@@ -476,10 +467,10 @@ function ComplexityCurve({ result }: { result: CodeFlowAnalysisResult }) {
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <div className="mt-4 flex flex-wrap gap-3">
+      <div className="mt-3 flex flex-wrap gap-2">
         {complexitySeries.map((series) => (
-          <span key={series.key} className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold ${series.key === curve.key ? "border-white bg-white text-black" : "border-white/20 bg-white/10 text-white"}`}>
-            <span className="h-2.5 w-2.5 rounded-full" style={{ background: series.color }} />
+          <span key={series.key} className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold ${series.key === curve.key ? "border-white bg-white text-black" : "border-white/20 bg-white/10 text-white"}`}>
+            <span className="h-2 w-2 rounded-full" style={{ background: series.color }} />
             {series.key === curve.key ? curve.label : series.label}
           </span>
         ))}
@@ -617,11 +608,21 @@ function DryRunChat({
   );
 }
 
-function InfoCard({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+function InfoCard({
+  label,
+  value,
+  mono = false,
+  compact = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  compact?: boolean;
+}) {
   return (
-    <section className="rounded-md border border-white/[0.08] bg-[#111] p-4">
+    <section className={`rounded-md border border-white/[0.08] bg-[#111] ${compact ? "p-3" : "p-4"}`}>
       <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">{label}</h3>
-      <p className={`mt-3 max-h-36 overflow-auto text-sm leading-6 text-zinc-200 ${mono ? "whitespace-pre-wrap font-mono" : ""}`}>
+      <p className={`${compact ? "mt-2 max-h-20 text-xs leading-5" : "mt-3 max-h-36 text-sm leading-6"} overflow-auto text-zinc-200 ${mono ? "whitespace-pre-wrap font-mono" : ""}`}>
         {value}
       </p>
     </section>
