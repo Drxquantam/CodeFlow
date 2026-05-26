@@ -305,15 +305,25 @@ function TestCasesTab({ result }: { result: CodeFlowAnalysisResult | null }) {
   return (
     <div className="grid gap-4 xl:grid-cols-2">
       {cases.map((testCase) => (
-        <div key={`${testCase.type}-${testCase.title}`} className="rounded-md border border-white/[0.08] bg-[#111] p-4">
+        <div key={`${testCase.type}-${testCase.title}`} className="min-w-0 rounded-md border border-white/[0.08] bg-[#111] p-4">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h3 className="text-lg font-bold text-white">{testCase.title}</h3>
             <Chip label={testCase.type} />
           </div>
           <p className="mb-3 text-sm leading-6 text-zinc-500">{testCase.explanation}</p>
-          <div className="grid gap-3 md:grid-cols-2">
-            <pre className="rounded-md bg-black/45 p-3 font-mono text-xs leading-5 text-zinc-300">{testCase.input}</pre>
-            <pre className="rounded-md bg-black/45 p-3 font-mono text-xs leading-5 text-signal-green">{testCase.expectedOutput || "Expected output not safely inferable."}</pre>
+          <div className="grid min-w-0 gap-3">
+            <div className="min-w-0">
+              <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-500">Input</p>
+              <pre className="max-h-36 min-w-0 overflow-auto whitespace-pre-wrap break-words rounded-md bg-black/45 p-3 font-mono text-xs leading-5 text-zinc-300">
+                {testCase.input}
+              </pre>
+            </div>
+            <div className="min-w-0">
+              <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-500">Expected</p>
+              <pre className="max-h-36 min-w-0 overflow-auto whitespace-pre-wrap break-words rounded-md bg-black/45 p-3 font-mono text-xs leading-5 text-signal-green">
+                {testCase.expectedOutput || "Expected output not safely inferable."}
+              </pre>
+            </div>
           </div>
         </div>
       ))}
