@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, ClipboardList, FileSearch, Gauge, Lightbulb, MessageSquare, Send, Table2 } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, ClipboardList, Clock3, Cpu, FileSearch, Gauge, Lightbulb, MessageSquare, Send } from "lucide-react";
 import { useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useAlgoStore } from "@/store/useAlgoStore";
@@ -142,46 +142,14 @@ function AnalyzeTab({ result }: { result: CodeFlowAnalysisResult | null }) {
   }
 
   return (
-    <div className="grid gap-4 xl:grid-cols-2">
-      <Section title="Code Summary" icon={<FileSearch className="h-4 w-4" />}>
-        <p className="text-sm leading-6 text-zinc-300">{result.codeSummary || "No summary returned."}</p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Chip label={result.language || "language unknown"} />
-          <Chip label={result.detectedAlgorithm || "pattern unknown"} />
-        </div>
-      </Section>
-
-      <Section title="Algorithm / Pattern Detected" icon={<Lightbulb className="h-4 w-4" />}>
-        <p className="text-2xl font-bold text-white">{result.detectedAlgorithm || "Unknown"}</p>
-      </Section>
-
-      <Section title="Step-by-Step Approach" icon={<ClipboardList className="h-4 w-4" />}>
-        <NumberedList items={result.analysis?.approach} empty="No approach steps returned." />
-      </Section>
-
-      <Section title="Complexity" icon={<Gauge className="h-4 w-4" />}>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Metric label="Best" value={result.analysis?.timeComplexity.best || "-"} />
-          <Metric label="Average" value={result.analysis?.timeComplexity.average || "-"} />
-          <Metric label="Worst" value={result.analysis?.timeComplexity.worst || "-"} />
-        </div>
-        <p className="mt-3 text-sm leading-6 text-zinc-500">{result.analysis?.timeComplexity.explanation || "No time complexity explanation returned."}</p>
-        <div className="mt-4 rounded-md border border-white/[0.08] bg-black/35 p-3">
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-zinc-500">Space Complexity</p>
-          <p className="mt-2 text-lg font-bold text-white">{result.analysis?.spaceComplexity.value || "-"}</p>
-          <p className="mt-1 text-sm leading-6 text-zinc-500">{result.analysis?.spaceComplexity.explanation || "No space explanation returned."}</p>
-        </div>
-      </Section>
-
+    <div className="space-y-5">
+      <AnalyzeVerdict result={result} />
+      <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+        <ApproachReview result={result} />
+        <PerformancePanel result={result} />
+      </div>
       <ComplexityCurve result={result} />
-
-      <Section title="Better Approach" icon={<CheckCircle2 className="h-4 w-4" />}>
-        <p className="text-sm leading-6 text-zinc-300">{result.analysis?.betterApproach || "No better approach suggestion returned."}</p>
-      </Section>
-
-      <Section title="Interview Explanation" icon={<Lightbulb className="h-4 w-4" />}>
-        <p className="text-sm leading-6 text-zinc-300">{result.analysis?.interviewExplanation || "No interview explanation returned."}</p>
-      </Section>
+      <ComplexityReasoning result={result} />
     </div>
   );
 }
@@ -263,43 +231,6 @@ function DryRunTab({
         <EmptyState text="No dry-run rows returned. Add input and analyze again." />
       ) : null}
 
-      {dryRun ? (
-        <div className="grid gap-4 xl:grid-cols-3">
-          <StateSummary dryRun={dryRun} />
-          <Section title="Variable Watch" icon={<Gauge className="h-4 w-4" />}>
-            {dryRun.variableWatch?.length ? (
-              <div className="space-y-2">
-                {dryRun.variableWatch.map((item) => (
-                  <pre key={item.step} className="rounded-md bg-black/45 p-3 font-mono text-xs leading-5 text-zinc-300">
-                    Step {item.step}: {formatVariables(item.variables)}
-                  </pre>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-zinc-500">No variable watch returned.</p>
-            )}
-          </Section>
-          <Section title="State Snapshots" icon={<Table2 className="h-4 w-4" />}>
-            {dryRun.snapshots?.length ? (
-              <div className="space-y-3">
-                {dryRun.snapshots.map((snapshot) => (
-                  <div key={`${snapshot.step}-${snapshot.title}`} className="rounded-md border border-white/[0.08] bg-black/35 p-3">
-                    <p className="font-semibold text-white">Step {snapshot.step}: {snapshot.title}</p>
-                    <p className="mt-1 text-sm leading-6 text-zinc-500">{snapshot.description}</p>
-                    {snapshot.variables ? <p className="mt-2 font-mono text-xs text-signal-green">{formatVariables(snapshot.variables)}</p> : null}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-zinc-500">No snapshots returned.</p>
-            )}
-          </Section>
-          <Section title="Output Prediction" icon={<CheckCircle2 className="h-4 w-4" />}>
-            <pre className="rounded-md bg-black/45 p-3 font-mono text-sm leading-6 text-zinc-300">{dryRun.finalOutput || "No final output returned."}</pre>
-          </Section>
-        </div>
-      ) : null}
-
       {result ? <DryRunChat result={result} code={code} stdin={stdin} /> : null}
     </div>
   );
@@ -334,68 +265,193 @@ function TestCasesTab({ result }: { result: CodeFlowAnalysisResult | null }) {
   );
 }
 
-function ComplexityCurve({ result }: { result: CodeFlowAnalysisResult }) {
-  const worst = result.analysis?.timeComplexity.worst ?? "";
-  const curve = buildComplexityCurve(worst);
+function AnalyzeVerdict({ result }: { result: CodeFlowAnalysisResult }) {
+  const scores = result.review?.scores;
+  const passed = (scores?.correctness ?? 0) >= 7 && (scores?.efficiency ?? 0) >= 7;
 
   return (
-    <section className="rounded-md border border-white/[0.08] bg-[#111] p-4 xl:col-span-2">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.16em] text-zinc-400">
-            <Gauge className="h-4 w-4" />
-            Time Complexity Curve
-          </h3>
-          <p className="mt-2 text-sm leading-6 text-zinc-500">
-            Growth preview for {worst || "unknown complexity"} across increasing input size.
-          </p>
-        </div>
-        <Chip label={curve.label} />
+    <section className="overflow-hidden rounded-md border border-white/[0.08] bg-[linear-gradient(135deg,#1c1a24,#101113_70%)]">
+      <div className="flex flex-wrap items-center gap-5 border-b border-white/[0.08] px-5 py-4 text-sm font-semibold text-[#a970ff]">
+        <span className="inline-flex items-center gap-2"><Check className="h-4 w-4" /> Approach</span>
+        <span className="inline-flex items-center gap-2"><Check className="h-4 w-4" /> Efficiency</span>
+        <span className="inline-flex items-center gap-2"><Check className="h-4 w-4" /> Code Style</span>
       </div>
-      <div className="h-[280px] rounded-md border border-white/[0.08] bg-black/35 p-3">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={curve.points} margin={{ left: 8, right: 16, top: 12, bottom: 8 }}>
-            <CartesianGrid stroke="#27272a" strokeDasharray="4 4" />
-            <XAxis dataKey="n" stroke="#a1a1aa" tick={{ fontSize: 12 }} />
-            <YAxis stroke="#a1a1aa" tick={{ fontSize: 12 }} />
-            <Tooltip
-              contentStyle={{ background: "#09090b", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8 }}
-              labelStyle={{ color: "#f4f4f5" }}
-            />
-            <Line type="monotone" dataKey="operations" stroke="#4ea1ff" strokeWidth={3} dot={{ r: 4, fill: "#4ea1ff" }} activeDot={{ r: 6 }} />
-          </LineChart>
-        </ResponsiveContainer>
+      <div className="p-5">
+        <p className="text-lg leading-8 text-[#b265ff]">
+          {passed
+            ? "Strong attempt. The solution looks submission-ready with clear reasoning and acceptable complexity."
+            : "Good start. Review the highlighted risks before submitting, especially correctness and edge cases."}
+        </p>
       </div>
     </section>
   );
 }
 
-function StateSummary({ dryRun }: { dryRun: NonNullable<CodeFlowAnalysisResult["dryRun"]> }) {
-  const latestWatch = dryRun.variableWatch?.at(-1);
-  const latestSnapshot = dryRun.snapshots?.at(-1);
+function ApproachReview({ result }: { result: CodeFlowAnalysisResult }) {
+  return (
+    <section className="rounded-md border border-white/[0.08] bg-[#111] p-5">
+      <h3 className="mb-4 flex items-center gap-2 text-xl font-bold text-[#8b5cf6]">
+        <Lightbulb className="h-5 w-5" />
+        Approach
+      </h3>
+      <div className="space-y-3 text-sm leading-7">
+        <p className="text-zinc-400">
+          Current: <span className="font-bold text-white">{result.detectedAlgorithm || "Unknown"}</span>
+        </p>
+        <p className="text-zinc-400">
+          Suggested: <span className="font-bold text-signal-green">{suggestedPattern(result)}</span>
+        </p>
+        <p className="text-zinc-400">
+          Key Idea: <span className="text-white">{result.codeSummary || "No summary returned."}</span>
+        </p>
+        <p className="text-zinc-400">
+          Consider: <span className="text-white">{result.analysis?.betterApproach || "No alternative approach was suggested."}</span>
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function PerformancePanel({ result }: { result: CodeFlowAnalysisResult }) {
+  const time = result.analysis?.timeComplexity.worst || "-";
+  const space = result.analysis?.spaceComplexity.value || "-";
+  const timeBeat = estimateBeat(time);
+  const spaceBeat = estimateBeat(space);
 
   return (
-    <Section title="Current State Focus" icon={<Table2 className="h-4 w-4" />}>
-      <div className="space-y-3">
-        {latestSnapshot ? (
-          <div className="rounded-md border border-signal-blue/20 bg-signal-blue/10 p-3">
-            <p className="font-semibold text-white">Step {latestSnapshot.step}: {latestSnapshot.title}</p>
-            <p className="mt-1 text-sm leading-6 text-zinc-300">{latestSnapshot.description}</p>
-          </div>
-        ) : (
-          <p className="text-sm text-zinc-500">No focused snapshot returned.</p>
-        )}
-        {latestWatch?.variables ? (
-          <div className="flex flex-wrap gap-2">
-            {Object.entries(latestWatch.variables).map(([key, value]) => (
-              <span key={key} className="rounded-full border border-white/[0.1] bg-black/45 px-3 py-1.5 font-mono text-xs text-zinc-200">
-                {key}={value}
-              </span>
-            ))}
-          </div>
-        ) : null}
+    <section className="grid gap-4 md:grid-cols-2">
+      <PerformanceCard
+        icon={<Clock3 className="h-5 w-5" />}
+        label="Runtime"
+        value={time}
+        beat={timeBeat}
+        active
+      />
+      <PerformanceCard
+        icon={<Cpu className="h-5 w-5" />}
+        label="Memory"
+        value={space}
+        beat={spaceBeat}
+      />
+    </section>
+  );
+}
+
+function PerformanceCard({
+  icon,
+  label,
+  value,
+  beat,
+  active = false,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  beat: string;
+  active?: boolean;
+}) {
+  return (
+    <div className={`min-h-[150px] rounded-xl border p-5 ${active ? "border-white/[0.14] bg-white/[0.1]" : "border-white/[0.08] bg-[#111]"}`}>
+      <div className="mb-6 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-xl text-white">
+          <span className={active ? "text-white" : "text-zinc-500"}>{icon}</span>
+          {label}
+        </div>
+        <span className="text-[#8b5cf6]">✦</span>
       </div>
-    </Section>
+      <p className="text-2xl font-bold text-white">
+        {value} <span className="text-sm font-normal text-zinc-500">| Beats</span>{" "}
+        <span className={active ? "text-white" : "text-zinc-400"}>{beat}</span>
+      </p>
+    </div>
+  );
+}
+
+function ComplexityCurve({ result }: { result: CodeFlowAnalysisResult }) {
+  const worst = result.analysis?.timeComplexity.worst ?? "";
+  const curve = buildComplexityCurve(worst);
+  const allCurves = buildAllComplexityCurves(worst);
+
+  return (
+    <section className="rounded-md border border-white/[0.08] bg-[#083f42] p-5 xl:col-span-2">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="flex items-center gap-2 text-3xl font-bold text-white">
+            <Gauge className="h-4 w-4" />
+            Big-O Complexity
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-zinc-200">
+            Current code is highlighted as {worst || "unknown complexity"}.
+          </p>
+        </div>
+        <Chip label={curve.label} />
+      </div>
+      <div className="h-[360px] rounded-md border border-white/[0.14] bg-[#063638] p-3">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={allCurves} margin={{ left: 8, right: 24, top: 12, bottom: 8 }}>
+            <CartesianGrid stroke="rgba(255,255,255,0.25)" />
+            <XAxis dataKey="n" stroke="#d4d4d8" tick={{ fontSize: 12 }} />
+            <YAxis stroke="#d4d4d8" tick={{ fontSize: 12 }} domain={[0, 1000]} label={{ value: "Operations", angle: -90, position: "insideLeft", fill: "#f4f4f5" }} />
+            <Tooltip
+              contentStyle={{ background: "#09090b", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8 }}
+              labelStyle={{ color: "#f4f4f5" }}
+            />
+            {complexitySeries.map((series) => (
+              <Line
+                key={series.key}
+                type="monotone"
+                dataKey={series.key}
+                name={series.label}
+                stroke={series.color}
+                strokeWidth={series.key === curve.key ? 5 : 2}
+                dot={false}
+                opacity={series.key === curve.key ? 1 : 0.55}
+              />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-3">
+        {complexitySeries.map((series) => (
+          <span key={series.key} className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold ${series.key === curve.key ? "border-white bg-white text-black" : "border-white/20 bg-white/10 text-white"}`}>
+            <span className="h-2.5 w-2.5 rounded-full" style={{ background: series.color }} />
+            {series.label}
+          </span>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ComplexityReasoning({ result }: { result: CodeFlowAnalysisResult }) {
+  const worst = result.analysis?.timeComplexity.worst || "unknown";
+  const explanation = result.analysis?.timeComplexity.explanation || "No complexity reasoning returned.";
+  const causes = inferComplexityCauses(result);
+
+  return (
+    <section className="rounded-md border border-white/[0.08] bg-[#111] p-5">
+      <h3 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.16em] text-zinc-400">
+        <Lightbulb className="h-4 w-4" />
+        How This Complexity Happens
+      </h3>
+      <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
+        <div className="rounded-md border border-white/[0.08] bg-black/35 p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-zinc-500">Current Complexity</p>
+          <p className="mt-3 text-3xl font-bold text-white">{worst}</p>
+          <p className="mt-3 text-sm leading-6 text-zinc-400">{explanation}</p>
+        </div>
+        <div className="space-y-3">
+          {causes.map((cause, index) => (
+            <div key={cause} className="flex gap-3 rounded-md border border-white/[0.08] bg-black/35 p-3 text-sm leading-6 text-zinc-300">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-signal-blue/15 font-mono text-xs font-bold text-signal-blue">
+                {index + 1}
+              </span>
+              <span>{cause}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -533,23 +589,6 @@ function BulletList({ items, empty }: { items?: string[]; empty: string }) {
   );
 }
 
-function NumberedList({ items, empty }: { items?: string[]; empty: string }) {
-  if (!items?.length) {
-    return <p className="text-sm leading-6 text-zinc-500">{empty}</p>;
-  }
-
-  return (
-    <ol className="space-y-2 text-sm leading-6 text-zinc-300">
-      {items.map((item, index) => (
-        <li key={item} className="flex gap-3">
-          <span className="font-mono text-signal-blue">{index + 1}.</span>
-          <span>{item}</span>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
 function ScoreGrid({ scores }: { scores?: NonNullable<CodeFlowAnalysisResult["review"]>["scores"] }) {
   const items = [
     ["Correctness", scores?.correctness],
@@ -573,15 +612,6 @@ function ScoreGrid({ scores }: { scores?: NonNullable<CodeFlowAnalysisResult["re
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border border-white/[0.08] bg-black/35 p-3">
-      <p className="text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">{label}</p>
-      <p className="mt-2 text-lg font-bold text-white">{value}</p>
-    </div>
-  );
-}
-
 function Chip({ label }: { label: string }) {
   return (
     <span className="rounded-full border border-white/[0.1] bg-white/[0.04] px-3 py-1 text-xs font-bold text-zinc-300">
@@ -590,45 +620,118 @@ function Chip({ label }: { label: string }) {
   );
 }
 
-function formatVariables(variables: Record<string, string>) {
-  return Object.entries(variables)
-    .map(([key, value]) => `${key}=${value}`)
-    .join(", ");
-}
+const complexitySeries = [
+  { key: "constant", label: "O(1)", color: "#36f5a3" },
+  { key: "logarithmic", label: "O(log n)", color: "#ffd166" },
+  { key: "linear", label: "O(n)", color: "#b8d991" },
+  { key: "linearithmic", label: "O(n log n)", color: "#ffffff" },
+  { key: "quadratic", label: "O(n^2)", color: "#7bd88f" },
+  { key: "exponential", label: "O(2^n)", color: "#22d3c5" },
+] as const;
 
 function buildComplexityCurve(complexity: string) {
   const normalized = complexity.toLowerCase().replace(/\s+/g, "");
-  const inputs = [10, 25, 50, 75, 100, 150, 200];
-  const calculator = normalized.includes("n^2") || normalized.includes("n2")
-    ? (n: number) => n * n
+  const key = normalized.includes("n^2") || normalized.includes("n2")
+    ? "quadratic"
     : normalized.includes("nlogn")
-      ? (n: number) => n * Math.log2(n)
+      ? "linearithmic"
       : normalized.includes("logn")
-        ? (n: number) => Math.log2(n)
+        ? "logarithmic"
         : normalized.includes("2^n")
-          ? (n: number) => Math.pow(2, Math.min(n / 10, 20))
+          ? "exponential"
           : normalized.includes("n")
-            ? (n: number) => n
-            : () => 1;
-
-  const raw = inputs.map((n) => ({ n, value: calculator(n) }));
-  const max = Math.max(...raw.map((point) => point.value), 1);
+            ? "linear"
+            : "constant";
 
   return {
-    label: normalized.includes("n^2") || normalized.includes("n2")
-      ? "quadratic"
-      : normalized.includes("nlogn")
-        ? "linearithmic"
-        : normalized.includes("logn")
-          ? "logarithmic"
-          : normalized.includes("2^n")
-            ? "exponential"
-            : normalized.includes("n")
-              ? "linear"
-              : "constant",
-    points: raw.map((point) => ({
-      n: point.n,
-      operations: Math.round((point.value / max) * 100),
-    })),
+    key,
+    label: complexitySeries.find((series) => series.key === key)?.label ?? "O(?)",
   };
+}
+
+function buildAllComplexityCurves(currentComplexity: string) {
+  const current = buildComplexityCurve(currentComplexity).key;
+  return Array.from({ length: 11 }, (_, index) => {
+    const n = index * 10;
+    return {
+      n,
+      constant: 20,
+      logarithmic: n === 0 ? 0 : Math.round(Math.log2(n + 1) * 22),
+      linear: n,
+      linearithmic: n === 0 ? 0 : Math.min(1000, Math.round(n * Math.log2(n + 1))),
+      quadratic: Math.min(1000, n * n / 2),
+      exponential: Math.min(1000, Math.round(Math.pow(2, n / 5))),
+      current,
+    };
+  });
+}
+
+function suggestedPattern(result: CodeFlowAnalysisResult) {
+  const better = result.analysis?.betterApproach?.trim();
+  if (better && !/already optimal|no better/i.test(better)) return better;
+  return result.detectedAlgorithm || "No alternative pattern suggested";
+}
+
+function estimateBeat(complexity: string) {
+  const key = buildComplexityCurve(complexity).key;
+  const score: Record<string, string> = {
+    constant: "99.90%",
+    logarithmic: "97.40%",
+    linear: "88.20%",
+    linearithmic: "74.60%",
+    quadratic: "42.15%",
+    exponential: "9.80%",
+  };
+  return score[key] ?? "50.00%";
+}
+
+function inferComplexityCauses(result: CodeFlowAnalysisResult) {
+  const algorithm = (result.detectedAlgorithm ?? "").toLowerCase();
+  const worst = result.analysis?.timeComplexity.worst?.toLowerCase() ?? "";
+
+  if (algorithm.includes("merge") || worst.includes("n log")) {
+    return [
+      "The array is split into halves again and again, creating about log n levels of recursion.",
+      "At each level, merge work scans the elements in the current ranges, which totals about n work per level.",
+      "n work across log n levels gives O(n log n). The temporary merge array causes O(n) auxiliary space.",
+    ];
+  }
+
+  if (algorithm.includes("binary") || worst.includes("log")) {
+    return [
+      "Each step checks the middle element.",
+      "Half of the search range is discarded after every comparison.",
+      "Repeatedly halving the range gives O(log n).",
+    ];
+  }
+
+  if (algorithm.includes("bfs") || algorithm.includes("dfs")) {
+    return [
+      "Each reachable node is visited at most once.",
+      "Each edge is checked from the adjacency list.",
+      "Visiting vertices plus scanning edges gives O(V + E).",
+    ];
+  }
+
+  if (worst.includes("n^2") || worst.includes("n2")) {
+    return [
+      "There is nested repeated work over the input.",
+      "For each outer step, the code may scan many inner elements.",
+      "That repeated pairwise scanning leads to O(n^2).",
+    ];
+  }
+
+  if (worst.includes("n")) {
+    return [
+      "The code processes each input item a constant number of times.",
+      "There is no nested full scan over the same input.",
+      "That direct pass over n items gives O(n).",
+    ];
+  }
+
+  return [
+    "The explanation is based on the loops, recursion, and data structures detected in the code.",
+    "Check the approach section for the operation that dominates runtime.",
+    "Use the dry run to connect each repeated operation with the final Big-O.",
+  ];
 }

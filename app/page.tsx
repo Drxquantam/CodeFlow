@@ -111,7 +111,7 @@ export default function Home() {
       </section>
 
       <footer className="border-t border-white/[0.08] bg-[#050505] px-6 py-10 text-center sm:px-10 lg:px-12">
-        <p className="mx-auto inline-flex items-center font-mono text-sm font-bold uppercase tracking-[0.18em] text-white">
+        <p className="mx-auto inline-flex items-center text-sm font-bold uppercase tracking-[0.18em] text-white">
           <span className="footer-typewriter">Built by Drxquantam</span>
         </p>
       </footer>

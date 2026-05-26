@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { askGroqJson } from "@/lib/groq";
+import { enrichDryRunForAlgorithm } from "@/lib/dryRunGenerator";
 import type { CodeFlowAnalysisResult } from "@/types/codeflowAnalysis";
 
 export async function POST(request: NextRequest) {
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
 
     const prompt = buildAnalysisPrompt(body.language ?? "unknown", body.code, body.stdin ?? "");
     const analysis = await askGroqJson(prompt, 2600) as CodeFlowAnalysisResult;
-    return NextResponse.json(analysis);
+    return NextResponse.json(enrichDryRunForAlgorithm(analysis, body.stdin ?? ""));
   } catch (error) {
     return NextResponse.json(
       {
@@ -102,6 +103,7 @@ Return JSON with exactly these keys:
 Test case type must be one of: "sample", "edge", "hidden-risk", "stress".
 Suggested dry-run columns by pattern:
 - arrays: Step, i, j, condition, action, array/state, output/ans
+- merge sort: Step, Call, Range, Left Half, Right Half, Comparison, Temp, Action, Array State
 - graph BFS/DFS: Step, current node, neighbor checked, visited, queue/stack, action
 - recursion: Step, function call, parameters, stack depth, return value, action
 - DP: Step, i, j, formula, dp update, table state
