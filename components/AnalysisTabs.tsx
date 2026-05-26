@@ -465,7 +465,7 @@ function ComplexityCurve({ result }: { result: CodeFlowAnalysisResult }) {
                 key={series.key}
                 type="monotone"
                 dataKey={series.key}
-                name={series.label}
+                name={series.key === curve.key ? curve.label : series.label}
                 stroke={series.color}
                 strokeWidth={series.key === curve.key ? 5 : 2}
                 dot={false}
@@ -479,7 +479,7 @@ function ComplexityCurve({ result }: { result: CodeFlowAnalysisResult }) {
         {complexitySeries.map((series) => (
           <span key={series.key} className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold ${series.key === curve.key ? "border-white bg-white text-black" : "border-white/20 bg-white/10 text-white"}`}>
             <span className="h-2.5 w-2.5 rounded-full" style={{ background: series.color }} />
-            {series.label}
+            {series.key === curve.key ? curve.label : series.label}
           </span>
         ))}
       </div>
@@ -798,23 +798,46 @@ const complexitySeries = [
 ] as const;
 
 function buildComplexityCurve(complexity: string) {
-  const normalized = complexity.toLowerCase().replace(/\s+/g, "");
-  const key = normalized.includes("n^2") || normalized.includes("n2")
-    ? "quadratic"
-    : normalized.includes("nlogn")
-      ? "linearithmic"
-      : normalized.includes("logn")
-        ? "logarithmic"
-        : normalized.includes("2^n")
-          ? "exponential"
-          : normalized.includes("n")
+  const label = formatComplexityLabel(complexity);
+  const normalized = complexity
+    .toLowerCase()
+    .replace(/[×·]/g, "*")
+    .replace(/\s+/g, "")
+    .replace(/\*\*/g, "^");
+  const expression = normalized.match(/o\((.*)\)/)?.[1] ?? normalized;
+  const hasSymbol = /[a-z]/.test(expression);
+  const hasProduct = /[a-z]\*+[a-z]|[vnekm]\)[*]?|[a-z][a-z]/.test(expression.replace(/log/g, ""));
+  const hasSquared = /\^2|²|n2|v2|e2|m2|k2/.test(expression);
+  const hasLog = /log/.test(expression);
+  const symbolsOutsideLog = expression.replace(/log/g, "").match(/[a-z]/g) ?? [];
+  const hasLinearLogFactor = hasLog && symbolsOutsideLog.length > 1;
+  const hasExp = /2\^[a-z]|exp|factorial|!/.test(expression);
+
+  const key = hasExp
+    ? "exponential"
+    : hasSquared
+      ? "quadratic"
+      : hasLog
+        ? expression.replace(/log/g, "").match(/[a-z]/)
+          ? hasLinearLogFactor ? "linearithmic" : "logarithmic"
+          : "logarithmic"
+        : hasProduct
+          ? "quadratic"
+          : hasSymbol
             ? "linear"
             : "constant";
 
   return {
     key,
-    label: complexitySeries.find((series) => series.key === key)?.label ?? "O(?)",
+    label,
   };
+}
+
+function formatComplexityLabel(complexity: string) {
+  const trimmed = complexity.trim();
+  if (!trimmed) return "O(?)";
+  if (/^o\(/i.test(trimmed)) return trimmed;
+  return `O(${trimmed.replace(/^O\s*/i, "").replace(/^\(|\)$/g, "")})`;
 }
 
 function buildAllComplexityCurves(currentComplexity: string) {

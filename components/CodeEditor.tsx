@@ -5,37 +5,6 @@ import type { editor } from "monaco-editor";
 import { useMemo } from "react";
 import { useAlgoStore } from "@/store/useAlgoStore";
 
-const costlyDecorations = [
-  {
-    range: {
-      startLineNumber: 10,
-      startColumn: 1,
-      endLineNumber: 10,
-      endColumn: 1,
-    },
-    options: {
-      isWholeLine: true,
-      className: "codeflow-hot-line",
-      glyphMarginClassName: "codeflow-glyph-hot",
-      hoverMessage: { value: "Complexity heatmap: nested traversal contributes O(n*m)." },
-    },
-  },
-  {
-    range: {
-      startLineNumber: 26,
-      startColumn: 1,
-      endLineNumber: 26,
-      endColumn: 1,
-    },
-    options: {
-      isWholeLine: true,
-      className: "codeflow-warm-line",
-      glyphMarginClassName: "codeflow-glyph-warm",
-      hoverMessage: { value: "Queue replay zone: BFS state changes are tracked here." },
-    },
-  },
-];
-
 export default function CodeEditor() {
   const code = useAlgoStore((state) => state.code);
   const setCode = useAlgoStore((state) => state.setCode);
@@ -99,33 +68,10 @@ export default function CodeEditor() {
   const handleMount: OnMount = (editorInstance, monaco) => {
     defineCodeflowTheme(monaco);
     monaco.editor.setTheme("codeflow-dark");
-    editorInstance.createDecorationsCollection(costlyDecorations);
   };
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-[#151515]">
-      <style jsx global>{`
-        .codeflow-hot-line {
-          background: rgba(239, 68, 68, 0.07);
-          border-right: 3px solid rgba(239, 68, 68, 0.45);
-        }
-        .codeflow-warm-line {
-          background: rgba(250, 204, 21, 0.045);
-          border-right: 3px solid rgba(250, 204, 21, 0.35);
-        }
-        .codeflow-glyph-hot::before {
-          content: "O";
-          color: #ef4444;
-          font-size: 11px;
-          font-weight: 800;
-        }
-        .codeflow-glyph-warm::before {
-          content: "R";
-          color: #facc15;
-          font-size: 11px;
-          font-weight: 800;
-        }
-      `}</style>
       <Editor
         height="100%"
         beforeMount={defineCodeflowTheme}
