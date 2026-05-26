@@ -34,7 +34,17 @@ const config: Config = {
           "Arial",
           "sans-serif",
         ],
-        mono: ["var(--font-geist-mono)", "Consolas", "monospace"],
+        mono: [
+          "Cascadia Code",
+          "Cascadia Mono",
+          "SFMono-Regular",
+          "Consolas",
+          "Menlo",
+          "Monaco",
+          "Liberation Mono",
+          "Courier New",
+          "monospace",
+        ],
       },
       boxShadow: {
         insetLine: "inset 0 1px 0 rgba(255,255,255,0.04)",

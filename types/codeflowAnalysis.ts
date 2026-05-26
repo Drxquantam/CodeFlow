@@ -1,6 +1,8 @@
 export type CodeFlowAnalysisResult = {
   language?: string;
   detectedAlgorithm?: string;
+  detectedPattern?: string;
+  inputUsed?: string;
   codeSummary?: string;
 
   review?: {
@@ -49,6 +51,8 @@ export type CodeFlowAnalysisResult = {
     finalOutput?: string;
     warnings?: string[];
   };
+
+  hiddenTestRisks?: string[];
 
   testCases?: Array<{
     title: string;

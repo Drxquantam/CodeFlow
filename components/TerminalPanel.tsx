@@ -69,7 +69,7 @@ export default function TerminalPanel() {
                   Space <span className="ml-auto font-bold text-white">{memory}</span>
                 </div>
               </div>
-              <pre className="min-h-[150px] whitespace-pre-wrap rounded-md border border-white/[0.08] bg-black p-4 text-base leading-7 text-zinc-200">
+              <pre className="min-h-[150px] whitespace-pre-wrap rounded-md border border-white/[0.08] bg-black p-4 font-mono text-base leading-7 text-zinc-200">
                 {output}
               </pre>
             </div>

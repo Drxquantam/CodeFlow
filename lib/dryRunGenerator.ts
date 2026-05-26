@@ -1,248 +1,249 @@
 import type { CodeFlowAnalysisResult } from "@/types/codeflowAnalysis";
 
-const mergeSortColumns = [
-  "Step",
-  "Call",
-  "Range",
-  "Left Half",
-  "Right Half",
-  "Comparison",
-  "Temp",
-  "Action",
-  "Array State",
-];
+type DryRunPattern =
+  | "binary_search"
+  | "sorting"
+  | "bfs"
+  | "dfs_recursion"
+  | "dp"
+  | "sliding_window"
+  | "two_pointers"
+  | "stack"
+  | "heap"
+  | "graph_shortest_path"
+  | "linked_list"
+  | "tree"
+  | "generic";
 
-const algorithmColumns: Record<string, string[]> = {
-  "binary search": ["Step", "Low", "Mid", "High", "nums[mid]", "Condition", "Action"],
-  "merge sort": mergeSortColumns,
-  bfs: ["Step", "Current Node", "Neighbor", "Queue", "Visited", "Action"],
-  dfs: ["Step", "Current Node", "Neighbor", "Stack/Recursion", "Visited", "Action"],
-  dp: ["Step", "i", "j", "Formula", "Previous Values", "DP Update", "Action"],
+type Schema = {
+  pattern: DryRunPattern;
+  label: string;
+  columns: string[];
+};
+
+export const dryRunSchemas: Record<DryRunPattern, Schema> = {
+  binary_search: {
+    pattern: "binary_search",
+    label: "Binary Search",
+    columns: ["Step", "Low", "Mid", "High", "Value Checked", "Condition", "Action", "Explanation"],
+  },
+  sorting: {
+    pattern: "sorting",
+    label: "Sorting / Divide and Conquer",
+    columns: ["Step", "Operation", "Indices", "Comparison", "Change Made", "Array State", "Explanation"],
+  },
+  bfs: {
+    pattern: "bfs",
+    label: "Breadth-First Search",
+    columns: ["Step", "Current State", "Next/Neighbor", "Queue Before", "Queue After", "Visited", "Condition", "Action", "Explanation"],
+  },
+  dfs_recursion: {
+    pattern: "dfs_recursion",
+    label: "DFS / Recursion",
+    columns: ["Step", "Function Call", "Current State", "Choice/Neighbor", "Condition", "Recursion Stack", "Visited/Used", "Action", "Explanation"],
+  },
+  dp: {
+    pattern: "dp",
+    label: "Dynamic Programming",
+    columns: ["Step", "State", "Formula", "Previous Values", "Updated Value", "DP State", "Action", "Explanation"],
+  },
+  sliding_window: {
+    pattern: "sliding_window",
+    label: "Sliding Window",
+    columns: ["Step", "Left", "Right", "Window", "Current Value", "Condition", "Window Update", "Answer Update", "Explanation"],
+  },
+  two_pointers: {
+    pattern: "two_pointers",
+    label: "Two Pointers",
+    columns: ["Step", "Left Pointer", "Right Pointer", "Values", "Condition", "Pointer Move", "Answer Update", "Explanation"],
+  },
+  stack: {
+    pattern: "stack",
+    label: "Stack / Monotonic Stack",
+    columns: ["Step", "Current Element", "Stack Before", "Condition", "Operation", "Popped Elements", "Stack After", "Answer Update", "Explanation"],
+  },
+  heap: {
+    pattern: "heap",
+    label: "Heap / Priority Queue",
+    columns: ["Step", "Current Item", "Heap Before", "Operation", "Heap After", "State Update", "Explanation"],
+  },
+  graph_shortest_path: {
+    pattern: "graph_shortest_path",
+    label: "Graph Shortest Path",
+    columns: ["Step", "Current Node", "Edge/Neighbor", "Old Distance", "New Distance", "Queue/Heap", "Action", "Explanation"],
+  },
+  linked_list: {
+    pattern: "linked_list",
+    label: "Linked List",
+    columns: ["Step", "Current", "Previous", "Next", "Pointer Change", "List State", "Explanation"],
+  },
+  tree: {
+    pattern: "tree",
+    label: "Tree Traversal",
+    columns: ["Step", "Current Node", "Direction/Operation", "Stack/Queue/Recursion", "Result State", "Explanation"],
+  },
+  generic: {
+    pattern: "generic",
+    label: "Generic Code Walkthrough",
+    columns: ["Step", "Code/Operation", "Condition Checked", "Result", "Variable Changes", "Data Structure State", "Explanation"],
+  },
 };
 
 export function enrichDryRunForAlgorithm(
   result: CodeFlowAnalysisResult,
   stdin: string,
+  code = "",
 ): CodeFlowAnalysisResult {
-  const algorithm = normalizeAlgorithm(result.detectedAlgorithm);
-  const nums = parseNumberArray(stdin);
+  const pattern = detectDryRunPattern(result.detectedAlgorithm, code);
+  const schema = dryRunSchemas[pattern];
+  const input = stdin.trim();
+  const missingInputWarning = "Input is required for a reliable dry run. Please provide input and generate again.";
+  const uncertaintyWarning = "AI-generated logical dry run. Verify exact runtime behavior with a compiler.";
+  const currentWarnings = result.dryRun?.warnings ?? [];
 
-  if (algorithm === "merge sort" && nums.length > 0) {
+  if (!input) {
     return {
       ...result,
-      dryRun: generateMergeSortDryRun(nums, stdin),
-    };
-  }
-
-  const columns = algorithmColumns[algorithm];
-  if (columns && result.dryRun) {
-    return {
-      ...result,
+      detectedPattern: schema.pattern,
+      inputUsed: "",
       dryRun: {
-        ...result.dryRun,
-        columns,
-        rows: result.dryRun.rows.map((row, index) => normalizeRow(row, columns, index + 1)),
+        input: "",
+        columns: schema.columns,
+        rows: [],
+        variableWatch: [],
+        snapshots: [],
+        finalOutput: "",
+        warnings: uniqueStrings([missingInputWarning, ...currentWarnings]),
       },
+      hiddenTestRisks: buildHiddenRiskList(result),
     };
   }
 
-  return result;
-}
-
-function generateMergeSortDryRun(nums: number[], stdin: string): NonNullable<CodeFlowAnalysisResult["dryRun"]> {
-  const array = [...nums];
-  const rows: Array<Record<string, string>> = [];
-  const variableWatch: NonNullable<CodeFlowAnalysisResult["dryRun"]>["variableWatch"] = [];
-  const snapshots: NonNullable<CodeFlowAnalysisResult["dryRun"]>["snapshots"] = [];
-
-  const pushRow = (row: Omit<Record<string, string>, "Step">) => {
-    const step = rows.length + 1;
-    const completeRow = normalizeRow({ Step: String(step), ...row }, mergeSortColumns, step);
-    rows.push(completeRow);
-    variableWatch.push({
-      step,
-      variables: {
-        array: completeRow["Array State"],
-        temp: completeRow.Temp || "-",
-        range: completeRow.Range || "-",
-      },
-    });
-    snapshots.push({
-      step,
-      title: completeRow.Action,
-      description: explainMergeSortRow(completeRow),
-      variables: {
-        call: completeRow.Call || "-",
-        range: completeRow.Range || "-",
-        temp: completeRow.Temp || "-",
-      },
-    });
-  };
-
-  const sort = (low: number, high: number) => {
-    pushRow({
-      Call: `mergeSort(${low}, ${high})`,
-      Range: `[${low}..${high}]`,
-      "Left Half": "-",
-      "Right Half": "-",
-      Comparison: "-",
-      Temp: "-",
-      Action: low === high
-        ? "Base case reached, single element is already sorted"
-        : "Enter recursive merge sort call",
-      "Array State": formatArray(array),
-    });
-
-    if (low >= high) return;
-
-    const mid = Math.floor((low + high) / 2);
-    pushRow({
-      Call: `mergeSort(${low}, ${high})`,
-      Range: `[${low}..${high}]`,
-      "Left Half": `nums[${low}..${mid}] = ${formatArray(array.slice(low, mid + 1))}`,
-      "Right Half": `nums[${mid + 1}..${high}] = ${formatArray(array.slice(mid + 1, high + 1))}`,
-      Comparison: "-",
-      Temp: "-",
-      Action: "Split into left and right halves",
-      "Array State": formatArray(array),
-    });
-
-    sort(low, mid);
-    sort(mid + 1, high);
-    merge(low, mid, high);
-  };
-
-  const merge = (low: number, mid: number, high: number) => {
-    const left = array.slice(low, mid + 1);
-    const right = array.slice(mid + 1, high + 1);
-    const temp: number[] = [];
-    let leftIndex = 0;
-    let rightIndex = 0;
-
-    pushRow({
-      Call: `merge(${low}, ${mid}, ${high})`,
-      Range: `[${low}..${high}]`,
-      "Left Half": formatArray(left),
-      "Right Half": formatArray(right),
-      Comparison: "-",
-      Temp: "[]",
-      Action: "Start merging the two sorted halves",
-      "Array State": formatArray(array),
-    });
-
-    while (leftIndex < left.length && rightIndex < right.length) {
-      const takeLeft = left[leftIndex] <= right[rightIndex];
-      temp.push(takeLeft ? left[leftIndex] : right[rightIndex]);
-      pushRow({
-        Call: `merge(${low}, ${mid}, ${high})`,
-        Range: `[${low}..${high}]`,
-        "Left Half": formatArray(left),
-        "Right Half": formatArray(right),
-        Comparison: `${left[leftIndex]} vs ${right[rightIndex]}`,
-        Temp: formatArray(temp),
-        Action: takeLeft ? "Take smaller element from left half" : "Take smaller element from right half",
-        "Array State": formatArray(array),
-      });
-      if (takeLeft) leftIndex += 1;
-      else rightIndex += 1;
-    }
-
-    while (leftIndex < left.length) {
-      temp.push(left[leftIndex]);
-      pushRow({
-        Call: `merge(${low}, ${mid}, ${high})`,
-        Range: `[${low}..${high}]`,
-        "Left Half": formatArray(left),
-        "Right Half": formatArray(right),
-        Comparison: "-",
-        Temp: formatArray(temp),
-        Action: "Copy remaining element from left half",
-        "Array State": formatArray(array),
-      });
-      leftIndex += 1;
-    }
-
-    while (rightIndex < right.length) {
-      temp.push(right[rightIndex]);
-      pushRow({
-        Call: `merge(${low}, ${mid}, ${high})`,
-        Range: `[${low}..${high}]`,
-        "Left Half": formatArray(left),
-        "Right Half": formatArray(right),
-        Comparison: "-",
-        Temp: formatArray(temp),
-        Action: "Copy remaining element from right half",
-        "Array State": formatArray(array),
-      });
-      rightIndex += 1;
-    }
-
-    temp.forEach((value, index) => {
-      array[low + index] = value;
-    });
-
-    pushRow({
-      Call: `merge(${low}, ${mid}, ${high})`,
-      Range: `[${low}..${high}]`,
-      "Left Half": formatArray(left),
-      "Right Half": formatArray(right),
-      Comparison: "-",
-      Temp: formatArray(temp),
-      Action: "Copy merged sorted values back to original array",
-      "Array State": formatArray(array),
-    });
-  };
-
-  if (array.length > 0) {
-    sort(0, array.length - 1);
-  }
-
-  pushRow({
-    Call: "mergeSort complete",
-    Range: `[0..${Math.max(array.length - 1, 0)}]`,
-    "Left Half": "-",
-    "Right Half": "-",
-    Comparison: "-",
-    Temp: "-",
-    Action: "Merge sort complete",
-    "Array State": formatArray(array),
-  });
+  const normalizedRows = (result.dryRun?.rows ?? []).map((row, index) =>
+    normalizeRow(row, schema.columns, index + 1),
+  );
 
   return {
-    input: stdin,
-    columns: mergeSortColumns,
-    rows,
-    variableWatch,
-    snapshots,
-    finalOutput: formatArray(array),
-    warnings: ["Deterministic merge-sort dry run generated from the provided input array."],
+    ...result,
+    detectedPattern: schema.pattern,
+    inputUsed: result.dryRun?.input || input,
+    dryRun: {
+      input: result.dryRun?.input || input,
+      columns: schema.columns,
+      rows: normalizedRows,
+      variableWatch: result.dryRun?.variableWatch ?? buildVariableWatch(normalizedRows, schema),
+      snapshots: result.dryRun?.snapshots ?? buildSnapshots(normalizedRows, schema),
+      finalOutput: result.dryRun?.finalOutput ?? "",
+      warnings: uniqueStrings([uncertaintyWarning, ...currentWarnings]),
+    },
+    hiddenTestRisks: buildHiddenRiskList(result),
   };
+}
+
+export function detectDryRunPattern(algorithm = "", code = ""): DryRunPattern {
+  const source = `${algorithm}\n${code}`.toLowerCase();
+
+  if (/\b(low|lo|l)\b/.test(source) && /\b(high|hi|r)\b/.test(source) && /\bmid\b/.test(source)) return "binary_search";
+  if (source.includes("priority_queue") || source.includes("heapq") || source.includes("poll(") || source.includes(".offer(")) {
+    if (source.includes("dist") || source.includes("distance") || source.includes("relax")) return "graph_shortest_path";
+    return "heap";
+  }
+  if (source.includes("dijkstra") || source.includes("bellman") || (source.includes("dist") && source.includes("edge"))) return "graph_shortest_path";
+  if (source.includes("queue") && (source.includes("visited") || source.includes("level") || source.includes("distance"))) return "bfs";
+  if ((source.includes("dfs") || source.includes("recursion")) && (source.includes("visited") || source.includes("adj") || source.includes("root"))) return "dfs_recursion";
+  if (source.includes("indegree") || source.includes("topo")) return "bfs";
+  if (source.includes("dp") || source.includes("memo") || source.includes("recurrence")) return "dp";
+  if (source.includes("mergesort") || source.includes("merge sort") || source.includes("partition") || source.includes("pivot") || source.includes("swap(") || source.includes("sort(")) return "sorting";
+  if (source.includes("left") && source.includes("right") && (source.includes("window") || source.includes("freq") || source.includes("map"))) return "sliding_window";
+  if (source.includes("slow") && source.includes("fast")) return "linked_list";
+  if (source.includes("head") && source.includes("next")) return "linked_list";
+  if (source.includes("left") && source.includes("right") && !source.includes("root")) return "two_pointers";
+  if (source.includes("stack") || source.includes(".top()") || source.includes(".peek()")) return "stack";
+  if (source.includes("root") && (source.includes("left") || source.includes("right"))) return "tree";
+  if (source.includes("dfs") || source.includes("recursive") || source.includes("return ") && source.includes("(")) return "dfs_recursion";
+
+  return "generic";
 }
 
 function normalizeRow(row: Record<string, string>, columns: string[], step: number) {
-  return Object.fromEntries(
-    columns.map((column) => [column, row[column] ?? (column === "Step" ? String(step) : "-")]),
+  const entries = columns.map((column) => {
+    if (column === "Step") return [column, stringifyCell(row[column] ?? row.step ?? step)];
+    return [column, stringifyCell(row[column] ?? findLooseValue(row, column) ?? "-")];
+  });
+
+  return Object.fromEntries(entries);
+}
+
+function findLooseValue(row: Record<string, string>, column: string) {
+  const wanted = normalizeKey(column);
+  const match = Object.entries(row).find(([key]) => normalizeKey(key) === wanted);
+  if (match) return match[1];
+
+  const aliases: Record<string, string[]> = {
+    valuechecked: ["numsmid", "arrmid", "value", "checkedvalue"],
+    currentstate: ["currentnode", "current", "state"],
+    nextneighbor: ["neighbor", "next", "neighborchecked"],
+    queuebefore: ["queue"],
+    queueafter: ["queue"],
+    visitedused: ["visited", "used"],
+    datastructurestate: ["state", "arraystate", "dpstate", "liststate"],
+    variablechanges: ["variables", "changedvariables"],
+    answerupdate: ["answer", "ans", "outputans"],
+  };
+
+  const aliasMatch = aliases[wanted]?.find((alias) =>
+    Object.keys(row).some((key) => normalizeKey(key) === alias),
   );
+  if (!aliasMatch) return undefined;
+
+  const originalKey = Object.keys(row).find((key) => normalizeKey(key) === aliasMatch);
+  return originalKey ? row[originalKey] : undefined;
 }
 
-function explainMergeSortRow(row: Record<string, string>) {
-  if (row.Action.includes("Base case")) return "A single element range is already sorted, so recursion returns without calculating a mid value.";
-  if (row.Action.includes("Split")) return "The current range is divided into two smaller ranges before merging.";
-  if (row.Action.includes("Take smaller")) return "The smaller front element is appended to temp so the merged range stays sorted.";
-  if (row.Action.includes("Copy merged")) return "The completed temp array replaces the original range.";
-  return row.Action;
+function buildVariableWatch(rows: Array<Record<string, string>>, schema: Schema) {
+  return rows.slice(0, 8).map((row, index) => ({
+    step: Number(row.Step) || index + 1,
+    variables: Object.fromEntries(
+      schema.columns
+        .filter((column) => column !== "Step" && !["Explanation", "Action"].includes(column))
+        .slice(0, 4)
+        .map((column) => [column, row[column] ?? "-"]),
+    ),
+  }));
 }
 
-function parseNumberArray(input: string) {
-  const bracketMatch = input.match(/\[([^\]]+)\]/);
-  const source = bracketMatch?.[1] ?? input;
-  return (source.match(/-?\d+/g) ?? []).map(Number);
+function buildSnapshots(rows: Array<Record<string, string>>, schema: Schema) {
+  return rows.slice(0, 6).map((row, index) => ({
+    step: Number(row.Step) || index + 1,
+    title: row.Action || row.Operation || row["Code/Operation"] || `${schema.label} step ${index + 1}`,
+    description: row.Explanation || "This step updates the tracked state for the selected algorithm pattern.",
+    variables: Object.fromEntries(
+      schema.columns
+        .filter((column) => column !== "Step" && !["Explanation", "Action", "Operation"].includes(column))
+        .slice(0, 3)
+        .map((column) => [column, row[column] ?? "-"]),
+    ),
+  }));
 }
 
-function formatArray(values: number[]) {
-  return `[${values.join(", ")}]`;
+function buildHiddenRiskList(result: CodeFlowAnalysisResult) {
+  return uniqueStrings([
+    ...(result.hiddenTestRisks ?? []),
+    ...(result.review?.edgeCaseRisks ?? []),
+    ...(result.dryRun?.warnings ?? []).filter((warning) => /risk|edge|overflow|invalid|missing|unreachable/i.test(warning)),
+  ]).slice(0, 8);
 }
 
-function normalizeAlgorithm(value?: string) {
-  return value?.toLowerCase().replace(/_/g, " ").trim() ?? "";
+function normalizeKey(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function stringifyCell(value: unknown) {
+  if (value === null || value === undefined || value === "") return "-";
+  if (typeof value === "string") return value;
+  return JSON.stringify(value);
+}
+
+function uniqueStrings(values: string[]) {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }

@@ -170,30 +170,80 @@ function DryRunTab({
   loading: boolean;
 }) {
   const dryRun = result?.dryRun;
+  const detectedPattern = result?.detectedPattern || "not generated yet";
+  const inputUsed = result?.inputUsed || dryRun?.input || stdin;
+  const hiddenRisks = result?.hiddenTestRisks ?? [];
+  const [sampleAssumed, setSampleAssumed] = useState(false);
 
   return (
     <div className="space-y-4">
+      <div className="grid gap-4 xl:grid-cols-[1fr_0.8fr]">
+        <div className="rounded-md border border-white/[0.08] bg-[#111] p-4">
+          <h3 className="text-sm font-bold uppercase tracking-[0.18em] text-zinc-400">Code Context</h3>
+          <p className="mt-2 text-sm leading-6 text-zinc-500">
+            The dry run uses the code from the editor. Paste or edit code on the left, then provide input here.
+          </p>
+          <pre className="mt-3 max-h-40 overflow-auto rounded-md border border-white/[0.08] bg-black/40 p-3 font-mono text-xs leading-5 text-zinc-300">
+            {code.trim() || "No code pasted yet."}
+          </pre>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+          <InfoCard label="Pattern Detected" value={prettyPattern(detectedPattern)} />
+          <InfoCard label="Input Used" value={inputUsed.trim() || "Input is required for a reliable dry run."} mono />
+        </div>
+      </div>
+
       <div className="rounded-md border border-white/[0.08] bg-[#111] p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-bold uppercase tracking-[0.18em] text-zinc-400">Input</h3>
-            <p className="mt-2 text-sm leading-6 text-zinc-500">Paste custom input, then analyze again to generate a step-by-step dry run.</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-500">Dry run needs input. Paste LeetCode/GFG-style input, then generate again.</p>
           </div>
-          <button
-            type="button"
-            onClick={onAnalyze}
-            disabled={loading}
-            className="rounded-md bg-white px-4 py-2 text-sm font-bold text-black transition hover:bg-zinc-200 disabled:cursor-wait disabled:bg-zinc-500"
-          >
-            {loading ? "Generating..." : "Generate Dry Run"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setStdin(sampleInputForPattern(result?.detectedPattern));
+                setSampleAssumed(true);
+              }}
+              className="rounded-md border border-white/[0.1] bg-white/[0.04] px-4 py-2 text-sm font-bold text-zinc-200 transition hover:border-white/25 hover:bg-white/[0.08]"
+            >
+              Use Sample Input
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setStdin(sampleInputForPattern(result?.detectedPattern));
+                setSampleAssumed(true);
+              }}
+              className="rounded-md border border-signal-blue/25 bg-signal-blue/10 px-4 py-2 text-sm font-bold text-signal-blue transition hover:bg-signal-blue/15"
+            >
+              Generate Sample Input
+            </button>
+            <button
+              type="button"
+              onClick={onAnalyze}
+              disabled={loading}
+              className="rounded-md bg-white px-4 py-2 text-sm font-bold text-black transition hover:bg-zinc-200 disabled:cursor-wait disabled:bg-zinc-500"
+            >
+              {loading ? "Generating..." : "Generate Dry Run"}
+            </button>
+          </div>
         </div>
         <textarea
           value={stdin}
-          onChange={(event) => setStdin(event.target.value)}
+          onChange={(event) => {
+            setStdin(event.target.value);
+            setSampleAssumed(false);
+          }}
           placeholder="Enter input here..."
           className="mt-4 min-h-32 w-full resize-y rounded-md border border-white/[0.1] bg-black/40 p-3 font-mono text-sm leading-6 text-zinc-200 outline-none"
         />
+        {sampleAssumed ? (
+          <p className="mt-3 rounded-md border border-signal-blue/20 bg-signal-blue/10 p-3 text-sm leading-6 text-signal-blue">
+            Sample input assumed for explanation. Edit it if your problem uses a different case.
+          </p>
+        ) : null}
       </div>
 
       {!result ? <EmptyState text="Paste code and input to generate a step-by-step dry run." /> : null}
@@ -228,7 +278,21 @@ function DryRunTab({
           </table>
         </div>
       ) : result ? (
-        <EmptyState text="No dry-run rows returned. Add input and analyze again." />
+        <EmptyState text={stdin.trim() ? "Could not generate reliable dry run. Please provide code, input, and expected function call format." : "Input is required for a reliable dry run."} />
+      ) : null}
+
+      {dryRun && dryRun.rows.length > 0 ? (
+        <div className="grid gap-4 xl:grid-cols-3">
+          <InfoCard label="Final Output Prediction" value={dryRun.finalOutput || "Not safely inferable from the logical dry run."} mono />
+          <WatchPanel title="Variable Watch" items={dryRun.variableWatch} />
+          <SnapshotPanel snapshots={dryRun.snapshots} />
+        </div>
+      ) : null}
+
+      {hiddenRisks.length ? (
+        <Section title="Hidden Test Risks" icon={<AlertTriangle className="h-4 w-4" />}>
+          <BulletList items={hiddenRisks} empty="No hidden test risks returned." />
+        </Section>
       ) : null}
 
       {result ? <DryRunChat result={result} code={code} stdin={stdin} /> : null}
@@ -552,6 +616,73 @@ function DryRunChat({
   );
 }
 
+function InfoCard({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <section className="rounded-md border border-white/[0.08] bg-[#111] p-4">
+      <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">{label}</h3>
+      <p className={`mt-3 max-h-36 overflow-auto text-sm leading-6 text-zinc-200 ${mono ? "whitespace-pre-wrap font-mono" : ""}`}>
+        {value}
+      </p>
+    </section>
+  );
+}
+
+function WatchPanel({
+  title,
+  items,
+}: {
+  title: string;
+  items?: NonNullable<NonNullable<CodeFlowAnalysisResult["dryRun"]>["variableWatch"]>;
+}) {
+  return (
+    <section className="rounded-md border border-white/[0.08] bg-[#111] p-4">
+      <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">{title}</h3>
+      {items?.length ? (
+        <div className="max-h-64 space-y-2 overflow-auto">
+          {items.map((item) => (
+            <div key={`${item.step}-${JSON.stringify(item.variables)}`} className="rounded-md bg-black/35 p-3">
+              <p className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-signal-blue">Step {item.step}</p>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(item.variables).map(([key, value]) => (
+                  <span key={`${item.step}-${key}`} className="rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 font-mono text-xs text-zinc-300">
+                    {key}: {value}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm leading-6 text-zinc-500">No variable watch returned for this dry run.</p>
+      )}
+    </section>
+  );
+}
+
+function SnapshotPanel({
+  snapshots,
+}: {
+  snapshots?: NonNullable<NonNullable<CodeFlowAnalysisResult["dryRun"]>["snapshots"]>;
+}) {
+  return (
+    <section className="rounded-md border border-white/[0.08] bg-[#111] p-4">
+      <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">State Snapshots</h3>
+      {snapshots?.length ? (
+        <div className="max-h-64 space-y-2 overflow-auto">
+          {snapshots.map((snapshot) => (
+            <div key={`${snapshot.step}-${snapshot.title}`} className="rounded-md border border-white/[0.08] bg-black/35 p-3">
+              <p className="text-sm font-bold text-white">Step {snapshot.step}: {snapshot.title}</p>
+              <p className="mt-2 text-sm leading-6 text-zinc-400">{snapshot.description}</p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm leading-6 text-zinc-500">No state snapshots returned for this dry run.</p>
+      )}
+    </section>
+  );
+}
+
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="rounded-md border border-white/[0.08] bg-[#111] p-4">
@@ -618,6 +749,43 @@ function Chip({ label }: { label: string }) {
       {label}
     </span>
   );
+}
+
+function prettyPattern(pattern?: string) {
+  if (!pattern || pattern === "not generated yet") return "Not generated yet";
+  return pattern
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function sampleInputForPattern(pattern?: string) {
+  switch (pattern) {
+    case "binary_search":
+      return "nums = [1, 2, 3, 4, 5], target = 4";
+    case "bfs":
+    case "dfs_recursion":
+      return "nodes = [1, 2, 3, 4, 5], edges = [[1, 2], [1, 3], [2, 4], [3, 5]], source = 1";
+    case "graph_shortest_path":
+      return "V = 5, edges = [[0, 1, 4], [0, 2, 1], [2, 1, 2], [1, 3, 1], [2, 3, 5]], source = 0";
+    case "dp":
+      return "n = 5";
+    case "sliding_window":
+      return "nums = [2, 1, 5, 1, 3, 2], k = 3";
+    case "two_pointers":
+      return "nums = [1, 2, 3, 4, 6], target = 6";
+    case "stack":
+      return "nums = [2, 1, 2, 4, 3]";
+    case "heap":
+      return "nums = [3, 2, 1, 5, 6, 4], k = 2";
+    case "linked_list":
+      return "head = [1, 2, 3, 4, 5]";
+    case "tree":
+      return "root = [1, 2, 3, null, 4]";
+    case "sorting":
+    default:
+      return "nums = [5, 2, 3, 1]";
+  }
 }
 
 const complexitySeries = [

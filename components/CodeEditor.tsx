@@ -43,7 +43,7 @@ export default function CodeEditor() {
 
   const options = useMemo<editor.IStandaloneEditorConstructionOptions>(
     () => ({
-      fontFamily: "Consolas, 'Cascadia Code', 'Courier New', monospace",
+      fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Cascadia Mono', 'SFMono-Regular', Consolas, Menlo, Monaco, 'Liberation Mono', 'Courier New', monospace",
       fontSize: 21,
       lineHeight: 30,
       minimap: { enabled: false },

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { analyzeCodeForDryRun } from "@/lib/codeAnalyzer";
 import { askGroqJson } from "@/lib/groq";
-import { enrichDryRunForAlgorithm } from "@/lib/dryRunGenerator";
+import { dryRunSchemas, enrichDryRunForAlgorithm } from "@/lib/dryRunGenerator";
 import type { CodeFlowAnalysisResult } from "@/types/codeflowAnalysis";
 
 export async function POST(request: NextRequest) {
@@ -15,9 +16,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Code is required." }, { status: 400 });
     }
 
-    const prompt = buildAnalysisPrompt(body.language ?? "unknown", body.code, body.stdin ?? "");
-    const analysis = await askGroqJson(prompt, 2600) as CodeFlowAnalysisResult;
-    return NextResponse.json(enrichDryRunForAlgorithm(analysis, body.stdin ?? ""));
+    const codeAnalysis = analyzeCodeForDryRun(body.code, body.language ?? "unknown");
+    const schema = dryRunSchemas[codeAnalysis.likelyPattern as keyof typeof dryRunSchemas];
+    const prompt = buildAnalysisPrompt(body.language ?? "unknown", body.code, body.stdin ?? "", schema, codeAnalysis);
+    const analysis = await askGroqJson(prompt, 3600) as CodeFlowAnalysisResult;
+    return NextResponse.json(enrichDryRunForAlgorithm(analysis, body.stdin ?? "", body.code));
   } catch (error) {
     return NextResponse.json(
       {
@@ -29,29 +32,70 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function buildAnalysisPrompt(language: string, code: string, stdin: string) {
+function buildAnalysisPrompt(
+  language: string,
+  code: string,
+  stdin: string,
+  schema: (typeof dryRunSchemas)[keyof typeof dryRunSchemas],
+  codeAnalysis: ReturnType<typeof analyzeCodeForDryRun>,
+) {
   return `You are CodeFlow, an AI-powered DSA Code Mentor.
 Review and analyze this ${language} program for DSA practice.
 The code may be LeetCode/GFG style with only a Solution class and no main function. Treat that as valid.
 
 Important rules:
 - Return only valid JSON.
-- Do not invent exact runtime states if you cannot know them.
-- If stdin is provided, create a useful dry run from that input.
-- If exact dry run depends on runtime/compiler behavior, clearly say "AI-generated dry run; verify with compiler for exact runtime behavior." in dryRun.warnings.
-- If input is missing, dryRun.rows should be [] and dryRun.warnings should ask for input.
-- Dry run must be detailed: prefer 8-18 rows when input is provided, covering recursive calls, comparisons, assignments, loop updates, queue/stack changes, and output changes.
+- Do not hardcode for one known LeetCode problem. Infer the pattern from the pasted code and input.
+- Do not claim you actually executed the code. This is an AI-generated logical dry run.
+- If stdin is provided, create a detailed educational dry run from that input.
+- If input is missing, dryRun.rows must be [] and dryRun.warnings must include "Input is required for a reliable dry run."
+- The dry run must use the selected schema columns exactly.
+- Dry run rows must explain line/operation, condition checked, true/false result where relevant, variable change, data-structure change, and why it happens.
+- Avoid vague actions such as "loop runs", "function called", "compare", "push", or "update variable". Use specific tutor-style explanations.
+- Prefer 10-22 rows when input is provided, unless the input is tiny.
 - For every dry-run row, fill every listed column with concrete values or "-".
-- variableWatch should include meaningful variables from several important steps, not only the first step.
+- variableWatch should include important variables/data structures across meaningful steps.
 - snapshots should explain why the next branch/loop/recursive call happens.
 - Do not use placeholder or demo values.
 - Keep improvedCode in the same language as the user code.
 - Do not rewrite code unless it fixes correctness, clarity, or meaningful performance.
 
+Selected dry-run pattern: ${schema.pattern}
+Selected dry-run label: ${schema.label}
+Use these dry-run columns exactly:
+${schema.columns.join(" | ")}
+
+Code analyzer facts:
+- language: ${codeAnalysis.language}
+- function names: ${codeAnalysis.functionNames.join(", ") || "unknown"}
+- input variables: ${codeAnalysis.inputVariables.join(", ") || "unknown"}
+- data structures: ${codeAnalysis.dataStructures.join(", ") || "none confidently detected"}
+- has loops: ${codeAnalysis.hasLoops ? "yes" : "no"}
+- has recursion: ${codeAnalysis.hasRecursion ? "yes" : "no"}
+- return variables: ${codeAnalysis.returnVariables.join(", ") || "unknown"}
+- pattern confidence: ${codeAnalysis.confidence}/100
+
+Common schema guide:
+- binary_search: Low/Mid/High, value checked, condition result, pointer movement.
+- sorting: operation/function, indices, comparison, swap/temp/change, array state.
+- bfs: current state, neighbor, queue before/after, visited, condition, action.
+- dfs_recursion: function call, choice, condition, recursion stack, visited/used.
+- dp: state, formula, previous values, updated value, DP state.
+- sliding_window: left/right/window, condition, window update, answer update.
+- two_pointers: pointer values, condition, pointer movement, answer update.
+- stack: current element, stack before/after, popped elements, answer update.
+- heap: heap before/after and state update.
+- graph_shortest_path: current node, relaxed edge, old/new distance, queue/heap.
+- linked_list: current/previous/next and exact pointer change.
+- tree: node, traversal direction, stack/queue/recursion, result state.
+- generic: operation, condition checked, result, variable changes, data-structure state.
+
 Return JSON with exactly these keys:
 {
   "language": "string",
   "detectedAlgorithm": "string",
+  "detectedPattern": "${schema.pattern}",
+  "inputUsed": "string",
   "codeSummary": "string",
   "review": {
     "bugs": ["string"],
@@ -82,13 +126,14 @@ Return JSON with exactly these keys:
   },
   "dryRun": {
     "input": "string",
-    "columns": ["string"],
-    "rows": [{"columnName": "string"}],
+    "columns": ${JSON.stringify(schema.columns)},
+    "rows": [{"${schema.columns[0]}": "string"}],
     "variableWatch": [{"step": 1, "variables": {"name": "value"}}],
     "snapshots": [{"step": 1, "title": "string", "description": "string", "variables": {"name": "value"}}],
     "finalOutput": "string",
     "warnings": ["string"]
   },
+  "hiddenTestRisks": ["string"],
   "testCases": [
     {
       "title": "string",
@@ -101,13 +146,6 @@ Return JSON with exactly these keys:
 }
 
 Test case type must be one of: "sample", "edge", "hidden-risk", "stress".
-Suggested dry-run columns by pattern:
-- arrays: Step, i, j, condition, action, array/state, output/ans
-- merge sort: Step, Call, Range, Left Half, Right Half, Comparison, Temp, Action, Array State
-- graph BFS/DFS: Step, current node, neighbor checked, visited, queue/stack, action
-- recursion: Step, function call, parameters, stack depth, return value, action
-- DP: Step, i, j, formula, dp update, table state
-- binary search: Step, low, mid, high, nums[mid], condition, action
 
 stdin:
 ${stdin || "(none)"}
