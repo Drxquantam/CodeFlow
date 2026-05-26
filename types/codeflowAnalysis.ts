@@ -36,6 +36,7 @@ export type CodeFlowAnalysisResult = {
 
   dryRun?: {
     input?: string;
+    confidence?: "Exact deterministic dry run" | "AI-assisted approximate dry run" | "Input missing" | "Unsupported pattern";
     columns: string[];
     rows: Array<Record<string, string>>;
     variableWatch?: Array<{

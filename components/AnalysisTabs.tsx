@@ -189,6 +189,7 @@ function DryRunTab({
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
           <InfoCard label="Pattern Detected" value={prettyPattern(detectedPattern)} />
+          <InfoCard label="Dry Run Confidence" value={dryRun?.confidence || "Not generated yet"} />
           <InfoCard label="Input Used" value={inputUsed.trim() || "Input is required for a reliable dry run."} mono />
         </div>
       </div>
