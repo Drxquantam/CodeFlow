@@ -393,20 +393,20 @@ function PerformancePanel({ result }: { result: CodeFlowAnalysisResult }) {
         </div>
         <span className="text-[#8b5cf6]">✦</span>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-      <PerformanceCard
-        icon={<Clock3 className="h-4 w-4" />}
-        label="Runtime"
-        value={time}
-        beat={timeBeat}
-        active
-      />
-      <PerformanceCard
-        icon={<Cpu className="h-4 w-4" />}
-        label="Memory"
-        value={space}
-        beat={spaceBeat}
-      />
+      <div className="grid gap-3">
+        <PerformanceCard
+          icon={<Clock3 className="h-4 w-4" />}
+          label="Runtime"
+          value={time}
+          beat={timeBeat}
+          active
+        />
+        <PerformanceCard
+          icon={<Cpu className="h-4 w-4" />}
+          label="Memory"
+          value={space}
+          beat={spaceBeat}
+        />
       </div>
     </section>
   );
