@@ -24,10 +24,12 @@ export async function POST(request: NextRequest) {
     const analysis = await askGroqJson(prompt, focus === "dry-run" ? 2600 : 1800) as CodeFlowAnalysisResult;
     return NextResponse.json(enrichDryRunForAlgorithm(analysis, body.stdin ?? "", body.code));
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Unexpected analysis error.";
     return NextResponse.json(
       {
-        error:
-          error instanceof Error ? error.message : "Unexpected analysis error.",
+        error: /malformed JSON|not valid JSON|Expected/i.test(message)
+          ? "The AI response came back malformed. Please try again; strict JSON mode is now enabled."
+          : message,
       },
       { status: 500 },
     );

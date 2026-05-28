@@ -25,11 +25,12 @@ export async function askGroqJson(prompt: string, maxTokens = 1600) {
       model: process.env.GROQ_MODEL ?? defaultModel,
       temperature: 0.1,
       max_completion_tokens: maxTokens,
+      response_format: { type: "json_object" },
       messages: [
         {
           role: "system",
           content:
-            "You are CodeFlow's senior DSA code analysis engine. Return only valid compact JSON. Do not wrap in markdown.",
+            "You are CodeFlow's senior DSA code analysis engine. Return only valid compact JSON. Do not wrap in markdown. The response must be a single JSON object.",
         },
         {
           role: "user",
@@ -73,6 +74,10 @@ function parseJsonObject(content: string) {
       throw new Error("Groq response was not valid JSON.");
     }
 
-    return JSON.parse(content.slice(start, end + 1));
+    try {
+      return JSON.parse(content.slice(start, end + 1));
+    } catch {
+      throw new Error("AI returned malformed JSON. Please click again; CodeFlow now requests strict JSON mode to prevent this.");
+    }
   }
 }
