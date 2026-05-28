@@ -22,7 +22,7 @@ export default function AnalysisTabs() {
   const currentKey = `${language}\n${stdin}\n${code}`;
   const visibleResult = analysisKey === currentKey ? result : null;
 
-  const runAnalysis = async () => {
+  const runAnalysis = async (focus: "full" | "dry-run" = "full") => {
     setLoading(true);
     setError("");
 
@@ -30,7 +30,7 @@ export default function AnalysisTabs() {
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, language, stdin }),
+        body: JSON.stringify({ code, language, stdin, focus }),
       });
       const payload = (await response.json()) as CodeFlowAnalysisResult & { error?: string };
 
@@ -67,7 +67,7 @@ export default function AnalysisTabs() {
         {active === "Analyze" ? (
           <button
             type="button"
-            onClick={runAnalysis}
+            onClick={() => void runAnalysis("full")}
             disabled={loading || !code.trim()}
             className="ml-auto h-9 rounded-md bg-white px-4 text-sm font-bold text-black transition hover:bg-zinc-200 disabled:cursor-wait disabled:bg-zinc-500"
           >
@@ -91,7 +91,7 @@ export default function AnalysisTabs() {
             code={code}
             stdin={stdin}
             setStdin={setStdin}
-            onAnalyze={runAnalysis}
+            onAnalyze={() => runAnalysis("dry-run")}
             loading={loading}
           />
         ) : null}
@@ -168,7 +168,7 @@ function DryRunTab({
   code: string;
   stdin: string;
   setStdin: (value: string) => void;
-  onAnalyze: () => void;
+  onAnalyze: () => void | Promise<void>;
   loading: boolean;
 }) {
   const dryRun = result?.dryRun;
@@ -214,7 +214,7 @@ function DryRunTab({
             </button>
             <button
               type="button"
-              onClick={onAnalyze}
+              onClick={() => void onAnalyze()}
               disabled={loading}
               className="rounded-md bg-white px-4 py-2 text-sm font-bold text-black transition hover:bg-zinc-200 disabled:cursor-wait disabled:bg-zinc-500"
             >
@@ -385,20 +385,29 @@ function PerformancePanel({ result }: { result: CodeFlowAnalysisResult }) {
   const spaceBeat = estimateBeat(space);
 
   return (
-    <section className="grid gap-4 md:grid-cols-2">
+    <section className="rounded-xl border border-white/[0.12] bg-white/[0.08] p-5">
+      <div className="mb-5 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-xl font-semibold text-white">
+          <Clock3 className="h-5 w-5" />
+          Performance
+        </div>
+        <span className="text-[#8b5cf6]">✦</span>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
       <PerformanceCard
-        icon={<Clock3 className="h-5 w-5" />}
+        icon={<Clock3 className="h-4 w-4" />}
         label="Runtime"
         value={time}
         beat={timeBeat}
         active
       />
       <PerformanceCard
-        icon={<Cpu className="h-5 w-5" />}
+        icon={<Cpu className="h-4 w-4" />}
         label="Memory"
         value={space}
         beat={spaceBeat}
       />
+      </div>
     </section>
   );
 }
@@ -417,9 +426,9 @@ function PerformanceCard({
   active?: boolean;
 }) {
   return (
-    <div className={`min-h-[150px] rounded-xl border p-5 ${active ? "border-white/[0.14] bg-white/[0.1]" : "border-white/[0.08] bg-[#111]"}`}>
-      <div className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xl text-white">
+    <div className={`rounded-lg border p-4 ${active ? "border-white/[0.1] bg-black/20" : "border-white/[0.08] bg-black/15 opacity-85"}`}>
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm font-medium text-zinc-300">
           <span className={active ? "text-white" : "text-zinc-500"}>{icon}</span>
           {label}
         </div>
@@ -439,10 +448,10 @@ function ComplexityCurve({ result }: { result: CodeFlowAnalysisResult }) {
   const allCurves = buildAllComplexityCurves(worst);
 
   return (
-    <section className="rounded-md border border-white/[0.08] bg-[#083f42] p-4 xl:col-span-2">
+    <section className="max-w-[760px] rounded-md border border-white/[0.08] bg-[#083f42] p-3 xl:col-span-2">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="flex items-center gap-2 text-xl font-bold text-white">
+          <h3 className="flex items-center gap-2 text-lg font-bold text-white">
             <Gauge className="h-4 w-4" />
             Big-O Complexity
           </h3>
@@ -452,12 +461,12 @@ function ComplexityCurve({ result }: { result: CodeFlowAnalysisResult }) {
         </div>
         <Chip label={curve.label} />
       </div>
-      <div className="h-[220px] rounded-md border border-white/[0.14] bg-[#063638] p-2">
+      <div className="h-[170px] rounded-md border border-white/[0.14] bg-[#063638] p-2">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={allCurves} margin={{ left: 0, right: 14, top: 8, bottom: 0 }}>
             <CartesianGrid stroke="rgba(255,255,255,0.25)" />
-            <XAxis dataKey="n" stroke="#d4d4d8" tick={{ fontSize: 12 }} />
-            <YAxis stroke="#d4d4d8" tick={{ fontSize: 11 }} domain={[0, 1000]} width={42} />
+            <XAxis dataKey="n" stroke="#d4d4d8" tick={{ fontSize: 10 }} />
+            <YAxis stroke="#d4d4d8" tick={{ fontSize: 10 }} domain={[0, 1000]} width={34} />
             <Tooltip
               contentStyle={{ background: "#09090b", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8 }}
               labelStyle={{ color: "#f4f4f5" }}
@@ -469,7 +478,7 @@ function ComplexityCurve({ result }: { result: CodeFlowAnalysisResult }) {
                 dataKey={series.key}
                 name={series.key === curve.key ? curve.label : series.label}
                 stroke={series.color}
-                strokeWidth={series.key === curve.key ? 5 : 2}
+                strokeWidth={series.key === curve.key ? 4 : 1.5}
                 dot={false}
                 opacity={series.key === curve.key ? 1 : 0.55}
               />
