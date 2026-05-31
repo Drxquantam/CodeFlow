@@ -284,8 +284,10 @@ function DryRunTab({
       ) : null}
 
       {dryRun?.warnings?.length ? (
-        <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm text-yellow-100">
-          {dryRun.warnings.join(" ")}
+        <div className="space-y-2">
+          {dryRun.warnings.map((warning, i) => (
+            <DryRunWarning key={i} warning={warning} setStdin={setStdin} />
+          ))}
         </div>
       ) : null}
 
@@ -334,6 +336,87 @@ function DryRunTab({
     </div>
   );
 }
+
+// ── Smart warning banner ─────────────────────────────────────────────────────
+
+/**
+ * Classifies a warning string into one of three buckets:
+ *
+ *  "format-hint"  → "For X, provide: ..."  — input is in the wrong format.
+ *                   Extract the example and show a one-click "Use this format" button.
+ *
+ *  "exact"        → "Exact deterministic … generated from …"
+ *                   Show as a quiet green success note, not a warning.
+ *
+ *  "info"         → everything else — yellow informational banner.
+ */
+function DryRunWarning({
+  warning,
+  setStdin,
+}: {
+  warning: string;
+  setStdin: (v: string) => void;
+}) {
+  // ── Exact / success messages ─────────────────────────────────────────────
+  if (/exact deterministic|exact execution trace/i.test(warning)) {
+    return (
+      <p className="rounded-[10px] border border-emerald-500/20 bg-emerald-500/6 px-4 py-2.5 text-[13px] font-medium text-emerald-400">
+        ✓ {warning}
+      </p>
+    );
+  }
+
+  // ── Format-hint messages ("For X, provide: …") ──────────────────────────
+  const provideMatch = warning.match(/provide:\s*(.+)/i);
+  if (provideMatch) {
+    const example = provideMatch[1].trim();
+    // Extract what algorithm name is mentioned
+    const algoMatch = warning.match(/^For\s+([^,]+),/i);
+    const algoName  = algoMatch?.[1]?.trim() ?? "this algorithm";
+
+    return (
+      <div className="rounded-[10px] border border-amber-500/25 bg-amber-500/8 p-4">
+        {/* Header */}
+        <div className="mb-2 flex items-center gap-2">
+          <span className="text-amber-400 text-base leading-none">⚠</span>
+          <p className="text-[13px] font-semibold text-amber-300">
+            Input format not recognised for <span className="text-white">{algoName}</span>
+          </p>
+        </div>
+
+        {/* Explanation */}
+        <p className="mb-3 text-[13px] leading-6 text-amber-200/70">
+          The step-by-step tracer needs the input in a specific format so it can
+          substitute real values into each row. Paste the format below into the
+          Input box and hit <strong className="text-white">Generate Dry Run</strong> again.
+        </p>
+
+        {/* Example + apply button */}
+        <div className="flex items-start gap-3 rounded-[8px] border border-white/[0.08] bg-black/30 px-3 py-2.5">
+          <code className="flex-1 font-mono text-[12px] leading-6 text-zinc-300 break-all">
+            {example}
+          </code>
+          <button
+            type="button"
+            onClick={() => setStdin(example)}
+            className="shrink-0 rounded-[7px] border border-violet-500/35 bg-violet-500/15 px-3 py-1.5 text-[12px] font-bold text-violet-300 transition hover:bg-violet-500/25 hover:text-violet-100"
+          >
+            Use this format
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Generic info / uncertainty banner ────────────────────────────────────
+  return (
+    <p className="rounded-[10px] border border-yellow-500/25 bg-yellow-500/8 px-4 py-2.5 text-[13px] leading-6 text-yellow-200">
+      {warning}
+    </p>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 function TestCasesTab({ result }: { result: CodeFlowAnalysisResult | null }) {
   if (!result) {
