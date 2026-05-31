@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { Sun } from "lucide-react";
+import { Cpu, Maximize2, Minimize2, PanelBottomClose, Sparkles, Zap } from "lucide-react";
 import AnalysisTabs from "@/components/AnalysisTabs";
 import CodeEditor from "@/components/CodeEditor";
 import TerminalPanel from "@/components/TerminalPanel";
@@ -14,8 +14,7 @@ export default function Home() {
   const [analysisOpen, setAnalysisOpen] = useState(true);
   const [workspaceFullscreen, setWorkspaceFullscreen] = useState(false);
   const [typedHero, setTypedHero] = useState("");
-  const heroText =
-    "Paste a solution, add messy problem input, and watch the algorithm unfold as dry runs, graphs, queues, stacks, and complexity curves.";
+  const heroText = "Paste code, add input, and watch every algorithm step unfold.";
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -23,95 +22,174 @@ export default function Home() {
         event.preventDefault();
         reviewCode();
       }
-
-      if (event.key === "Escape") {
-        setWorkspaceFullscreen(false);
-      }
+      if (event.key === "Escape") setWorkspaceFullscreen(false);
     };
-
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [reviewCode]);
 
   useEffect(() => {
     let index = 0;
-
     const interval = window.setInterval(() => {
       index += 1;
       setTypedHero(heroText.slice(0, index));
-
-      if (index >= heroText.length) {
-        window.clearInterval(interval);
-      }
-    }, 24);
-
+      if (index >= heroText.length) window.clearInterval(interval);
+    }, 26);
     return () => window.clearInterval(interval);
   }, [heroText]);
 
   return (
-    <main className="min-h-screen bg-[#050505] text-zinc-100">
-      <HeroAnimationStyles />
-      <header className="border-b border-white/[0.08] bg-[#070707]">
-        <div className="mx-auto flex h-[86px] max-w-[1800px] items-center justify-between px-6 sm:px-10 lg:px-12">
+    <main className="min-h-screen bg-editor-950 text-zinc-100">
+      {/* Top accent gradient line */}
+      <div
+        className="h-[2px] w-full"
+        style={{
+          background:
+            "linear-gradient(90deg, transparent 0%, #4f46e5 20%, #7c3aed 50%, #a78bfa 80%, transparent 100%)",
+        }}
+      />
+
+      {/* ── Header ──────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-editor-950/95 backdrop-blur-xl">
+        <div className="mx-auto flex h-[66px] max-w-[1800px] items-center justify-between px-6 sm:px-10 lg:px-12">
+          {/* Brand */}
           <div className="flex items-center gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-[13px] border border-white/[0.1] bg-white/[0.045] shadow-insetLine">
+            <div
+              className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-[10px] border border-violet-500/30 bg-violet-500/10"
+              style={{ boxShadow: "0 0 18px rgba(99,102,241,0.25)" }}
+            >
               <Image
                 src="/codeflow-logo.png"
-                alt="CodeFlow logo"
-                width={36}
-                height={36}
-                className="h-9 w-9 object-contain"
+                alt="CodeFlow"
+                width={26}
+                height={26}
+                className="h-[26px] w-[26px] object-contain"
               />
             </div>
-            <div className="flex items-baseline gap-3">
-              <span className="text-[26px] font-semibold tracking-normal text-white">CodeFlow</span>
+            <div className="flex items-center gap-2">
+              <span className="text-[21px] font-bold tracking-tight text-white">CodeFlow</span>
+              <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.18em] text-violet-400">
+                Beta
+              </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-4 text-zinc-400">
+          {/* Nav pills */}
+          <nav className="hidden items-center gap-1 lg:flex">
+            {(["Dry Run", "Review", "Analyze", "Test Cases"] as const).map((item) => (
+              <button
+                key={item}
+                type="button"
+                className="rounded-lg px-3.5 py-2 text-sm font-medium text-zinc-400 transition hover:bg-white/[0.05] hover:text-white"
+              >
+                {item}
+              </button>
+            ))}
+          </nav>
+
+          {/* Right side */}
+          <div className="flex items-center gap-3">
+            <div className="hidden items-center gap-2 sm:flex">
+              <span className="h-2 w-2 rounded-full bg-emerald-400" style={{ boxShadow: "0 0 6px #34d399" }} />
+              <span className="text-xs font-medium text-zinc-500">AI Ready</span>
+            </div>
+            <div className="h-4 w-px bg-white/[0.1]" />
             <button
               type="button"
-              aria-label="Theme"
-              title="Theme"
-              className="grid h-11 w-11 place-items-center rounded-[14px] border border-white/[0.14] bg-white/[0.035] text-zinc-200 transition duration-200 hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/[0.08]"
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-violet-500/35 bg-violet-500/12 px-4 text-sm font-semibold text-violet-300 transition hover:border-violet-400/55 hover:bg-violet-500/20 hover:text-violet-200"
             >
-              <Sun className="h-5 w-5" />
+              <Zap className="h-3.5 w-3.5" />
+              <span className="hidden sm:block">Get Started</span>
             </button>
           </div>
         </div>
       </header>
 
-      <section className="mx-auto max-w-[1800px] px-6 py-12 sm:px-10 lg:px-12">
-        <div className="mb-9 max-w-[980px]">
-          <h1 className="text-[42px] font-bold leading-tight tracking-normal text-white sm:text-[58px]">
-            DSA Code Mentor
-          </h1>
-          <p className="mt-5 max-w-[1080px] text-[24px] leading-10 text-zinc-100">
-            <span>{typedHero}</span>
-            <span className="typing-cursor" aria-hidden="true" />
-          </p>
+      <section className="mx-auto max-w-[1800px] px-6 sm:px-10 lg:px-12">
+        {/* ── Hero ─────────────────────────────────────────────── */}
+        <div className="relative overflow-hidden py-12 pb-10">
+          {/* Dot grid background */}
+          <div className="hero-grid pointer-events-none absolute inset-0 opacity-60" />
+          {/* Radial glow behind headline */}
+          <div
+            className="pointer-events-none absolute left-0 top-0 h-[360px] w-[600px]"
+            style={{
+              background:
+                "radial-gradient(ellipse at 10% 30%, rgba(99,102,241,0.12) 0%, transparent 60%)",
+            }}
+          />
+
+          <div className="relative">
+            {/* Eyebrow badge */}
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-violet-500/25 bg-violet-500/8 px-4 py-1.5">
+              <Sparkles className="h-3.5 w-3.5 text-violet-400" />
+              <span className="text-sm font-semibold text-violet-300">AI-Powered DSA Code Mentor</span>
+            </div>
+
+            <h1 className="text-[50px] font-black leading-[1.06] tracking-tight text-white sm:text-[68px]">
+              Debug. Dry Run.
+              <br />
+              <span className="text-gradient-hero">Master Algorithms.</span>
+            </h1>
+
+            <p className="mt-4 max-w-[540px] text-[17px] leading-[1.75] text-zinc-400">
+              <span>{typedHero}</span>
+              <span className="typing-cursor" aria-hidden="true" />
+            </p>
+
+            {/* Language + feature pills */}
+            <div className="mt-7 flex flex-wrap items-center gap-2">
+              {["C++", "Java", "Python", "JavaScript"].map((lang) => (
+                <span
+                  key={lang}
+                  className="rounded-full border border-white/[0.1] bg-white/[0.05] px-3.5 py-1.5 text-sm font-semibold text-zinc-300 transition hover:border-violet-500/40 hover:bg-violet-500/10 hover:text-violet-300"
+                >
+                  {lang}
+                </span>
+              ))}
+              <span className="mx-1 text-zinc-700">·</span>
+              {["Dry Run Tables", "AI Review", "Complexity Curves", "Test Cases"].map((feat) => (
+                <span key={feat} className="flex items-center gap-1.5 text-sm text-zinc-600">
+                  <span className="h-1.5 w-1.5 rounded-full bg-violet-500/50" />
+                  {feat}
+                </span>
+              ))}
+            </div>
+          </div>
         </div>
 
+        {/* Fullscreen backdrop */}
         {workspaceFullscreen ? <div className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm" /> : null}
 
-        <VisualizerShell
+        {/* ── Workspace ────────────────────────────────────────── */}
+        <WorkspaceShell
           isFullscreen={workspaceFullscreen}
           analysisOpen={analysisOpen}
-          onToggleAnalysis={() => setAnalysisOpen((value) => !value)}
-          onToggleFullscreen={() => setWorkspaceFullscreen((value) => !value)}
+          onToggleAnalysis={() => setAnalysisOpen((v) => !v)}
+          onToggleFullscreen={() => setWorkspaceFullscreen((v) => !v)}
         />
 
+        {/* ── Analysis panel ───────────────────────────────────── */}
         {analysisOpen ? (
-          <section className="mt-8 overflow-hidden rounded-[18px] border border-white/[0.09] bg-carbon-900">
+          <section
+            className="mt-4 overflow-hidden rounded-[18px] border border-violet-500/15 bg-editor-800 panel-enter"
+            style={{
+              boxShadow:
+                "0 0 0 1px rgba(99,102,241,0.1), inset 0 1px 0 rgba(255,255,255,0.025)",
+            }}
+          >
             <AnalysisTabs />
           </section>
         ) : null}
 
+        {/* ── Info sections ────────────────────────────────────── */}
         <InfoSections />
       </section>
 
-      <footer className="border-t border-white/[0.08] bg-[#050505] px-6 py-10 text-center sm:px-10 lg:px-12">
-        <p className="mx-auto inline-flex items-center text-sm font-bold uppercase tracking-[0.18em] text-white">
+      {/* ── Footer ────────────────────────────────────────────── */}
+      <footer className="border-t border-white/[0.06] bg-editor-950 px-6 py-8 text-center">
+        <p className="mx-auto inline-flex items-center gap-2 text-sm font-bold uppercase tracking-[0.18em] text-zinc-500">
+          <Cpu className="h-4 w-4 text-violet-500" />
           <span className="footer-typewriter">Built by Drxquantam</span>
         </p>
       </footer>
@@ -119,7 +197,7 @@ export default function Home() {
   );
 }
 
-function VisualizerShell({
+function WorkspaceShell({
   isFullscreen,
   analysisOpen,
   onToggleAnalysis,
@@ -132,126 +210,82 @@ function VisualizerShell({
 }) {
   return (
     <section
-      className={`overflow-hidden border border-white/[0.1] bg-carbon-900 shadow-2xl shadow-black/40 transition-all duration-300 ${
-        isFullscreen ? "fixed inset-3 z-50 rounded-[18px]" : "rounded-[22px]"
+      className={`relative overflow-hidden border border-violet-500/18 bg-editor-900 transition-all duration-300 ${
+        isFullscreen ? "fixed inset-3 z-50 rounded-[18px]" : "rounded-[20px]"
       }`}
+      style={{ boxShadow: "0 40px 140px rgba(0,0,0,0.85), 0 0 100px rgba(99,102,241,0.07), 0 0 0 1px rgba(99,102,241,0.14)" }}
     >
-      <TopBar
-        analysisOpen={analysisOpen}
-        onToggleAnalysis={onToggleAnalysis}
-        isFullscreen={isFullscreen}
-        onToggleFullscreen={onToggleFullscreen}
+      {/* Subtle inner gradient overlay */}
+      <div
+        className="pointer-events-none absolute inset-0 z-0 rounded-[20px]"
+        style={{
+          background:
+            "radial-gradient(ellipse at 30% 0%, rgba(99,102,241,0.06) 0%, transparent 50%)",
+        }}
       />
 
-      <div
-        className={`grid grid-cols-1 xl:grid-cols-[minmax(0,60%)_1px_minmax(420px,40%)] ${
-          isFullscreen ? "h-[calc(100%-72px)]" : "min-h-[540px]"
-        }`}
-      >
-        <section className="min-h-[480px] min-w-0 bg-[#151515] xl:min-h-0">
-          <CodeEditor />
-        </section>
+      <div className="relative z-10">
+        <TopBar
+          analysisOpen={analysisOpen}
+          onToggleAnalysis={onToggleAnalysis}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={onToggleFullscreen}
+        />
 
-        <div className="hidden bg-white/[0.08] xl:block" />
+        <div
+          className={`grid grid-cols-1 xl:grid-cols-[minmax(0,60%)_1px_minmax(420px,40%)] ${
+            isFullscreen ? "h-[calc(100%-108px)]" : "min-h-[560px]"
+          }`}
+        >
+          <section className="min-h-[480px] min-w-0 bg-[#0d0d1e] xl:min-h-0">
+            <CodeEditor />
+          </section>
 
-        <section className="min-h-[420px] border-t border-white/[0.08] bg-carbon-950 xl:border-t-0">
-          <TerminalPanel />
-        </section>
+          <div className="hidden xl:block" style={{ background: "linear-gradient(180deg, rgba(99,102,241,0.2) 0%, rgba(99,102,241,0.05) 100%)" }} />
+
+          <section className="min-h-[420px] border-t border-white/[0.06] bg-editor-850 xl:border-t-0">
+            <TerminalPanel />
+          </section>
+        </div>
       </div>
     </section>
   );
 }
 
-function HeroAnimationStyles() {
-  return (
-    <style jsx global>{`
-      .typing-cursor {
-        display: inline-block;
-        width: 2px;
-        height: 1.05em;
-        margin-left: 4px;
-        transform: translateY(3px);
-        background: #f4f4f5;
-        animation: typing-cursor-blink 850ms steps(1) infinite;
-      }
-
-      @keyframes typing-cursor-blink {
-        0%,
-        45% {
-          opacity: 1;
-        }
-        46%,
-        100% {
-          opacity: 0;
-        }
-      }
-
-      .footer-typewriter {
-        display: inline-block;
-        width: auto;
-        max-width: 0;
-        overflow: hidden;
-        white-space: nowrap;
-        border-right: 2px solid #4ea1ff;
-        animation:
-          footer-type 4.8s steps(20, end) infinite,
-          footer-caret 850ms steps(1) infinite;
-      }
-
-      @keyframes footer-type {
-        0% {
-          max-width: 0;
-        }
-        42%,
-        72% {
-          max-width: 360px;
-        }
-        100% {
-          max-width: 0;
-        }
-      }
-
-      @keyframes footer-caret {
-        0%,
-        45% {
-          border-color: #4ea1ff;
-        }
-        46%,
-        100% {
-          border-color: transparent;
-        }
-      }
-    `}</style>
-  );
-}
-
-const languageTags = [
-  "C++",
-  "Java",
-  "Python",
-  "JavaScript",
-];
+/* ── Info sections ─────────────────────────────────────────────── */
 
 const featureCards = [
   {
+    icon: "🔍",
     title: "Review Code",
-    body: "Find logical bugs, runtime risks, edge-case failures, code-quality issues, and interview readiness gaps.",
+    body: "Find logical bugs, runtime risks, edge-case failures, and interview readiness gaps — instantly.",
     meta: "Ctrl+Enter",
+    color: "from-blue-500/10 to-indigo-500/5",
+    border: "border-blue-500/20",
   },
   {
+    icon: "📊",
     title: "Analyze",
-    body: "Understand the detected pattern, approach, time and space complexity, better alternatives, and interview explanation.",
+    body: "Understand the detected pattern, time/space complexity, better alternatives, and interview explanation.",
     meta: "Complexity graph",
+    color: "from-violet-500/10 to-purple-500/5",
+    border: "border-violet-500/20",
   },
   {
+    icon: "▶",
     title: "Dry Run",
-    body: "Generate a detailed step table, variable watch, state snapshots, output prediction, and ask questions while learning.",
-    meta: "Mentor chat",
+    body: "Step-by-step table with variable watch, state snapshots, output prediction and mentor chat.",
+    meta: "Step tables",
+    color: "from-emerald-500/10 to-teal-500/5",
+    border: "border-emerald-500/20",
   },
   {
+    icon: "🧪",
     title: "Test Cases",
-    body: "Generate sample, edge, hidden-risk, and stress cases to check whether your solution survives real submissions.",
+    body: "Generate sample, edge, hidden-risk, and stress cases to harden your solution before submission.",
     meta: "Hidden cases",
+    color: "from-amber-500/10 to-orange-500/5",
+    border: "border-amber-500/20",
   },
 ];
 
@@ -259,32 +293,27 @@ const faqs = [
   {
     question: "What is CodeFlow?",
     answer:
-      "CodeFlow is an AI-powered DSA code mentor. It combines review, algorithm analysis, complexity graphs, dry-run tables, mentor chat, and test-case generation in one focused workspace.",
+      "CodeFlow is an AI-powered DSA code mentor. It combines review, algorithm analysis, complexity graphs, dry-run tables, mentor chat, and test-case generation in one workspace.",
   },
   {
     question: "Does CodeFlow execute code?",
     answer:
-      "No. CodeFlow focuses on static AI review, reasoning, dry-run mentoring, and test-case planning instead of executing arbitrary code.",
+      "No. CodeFlow focuses on static AI review, reasoning, dry-run mentoring, and test-case planning — not on executing arbitrary code.",
   },
   {
-    question: "How do I review my code?",
+    question: "How do I generate a dry run?",
     answer:
-      "Pick a language, paste a solution, add input if the algorithm needs it, then click Review Code or press Ctrl+Enter.",
+      "Paste your code, add input in the terminal panel (or use 'Use Sample Input'), switch to the Dry Run tab, then click Generate Dry Run.",
   },
   {
-    question: "What does Reset do?",
+    question: "What languages are supported?",
     answer:
-      "Reset restores the default boilerplate for the selected language and clears the current review panel.",
+      "C++, Java, Python, and JavaScript — with language-aware review, dry-run generation, complexity reasoning, and test-case planning.",
   },
   {
-    question: "What is the complexity analyzer?",
+    question: "What does the complexity graph show?",
     answer:
-      "It explains expected time and space complexity and shows a visual growth curve so you can understand why an approach may pass or fail constraints.",
-  },
-  {
-    question: "What is the dry-run table?",
-    answer:
-      "The dry-run table shows important variables, state snapshots, likely output, and warnings step by step. You can also ask questions about the dry run in the mentor chat.",
+      "A visual growth curve comparing your solution's complexity class against O(1), O(log n), O(n), O(n log n), O(n²), and O(2ⁿ) — so you know why a solution may TLE.",
   },
   {
     question: "Can this help with LeetCode practice?",
@@ -295,162 +324,50 @@ const faqs = [
 
 function InfoSections() {
   return (
-    <section className="mx-auto mt-16 max-w-[1120px] space-y-16 pb-24">
-      <ContentBlock
-        eyebrow="About CodeFlow"
-        title="Review, dry-run, and improve DSA code"
-        body="CodeFlow is an AI-powered DSA code mentor for learners, interview prep, and competitive programming practice. It helps you review correctness, understand complexity, walk through dry runs, ask follow-up questions, and prepare stronger test cases without pretending to execute arbitrary code."
-      />
-
-      <section>
-        <h2 className="text-[30px] font-bold leading-tight text-white">How To Use CodeFlow</h2>
-        <ol className="mt-5 space-y-3 text-[17px] leading-8 text-zinc-300">
-          <li>
-            <strong className="text-white">1. Choose a language:</strong> Select C++, Java,
-            Python, or JavaScript from the language dropdown.
-          </li>
-          <li>
-            <strong className="text-white">2. Paste or write a solution:</strong> Start from a clean
-            boilerplate or paste LeetCode/GFG-style class code directly.
-          </li>
-          <li>
-            <strong className="text-white">3. Add stdin:</strong> Paste input in the right panel
-            so the dry run can follow the same test case.
-          </li>
-          <li>
-            <strong className="text-white">4. Review or reset:</strong> Click Review Code or press
-            Ctrl+Enter. Use Reset to restore the selected language boilerplate.
-          </li>
-          <li>
-            <strong className="text-white">5. Learn:</strong> Use Review, Analyze, Dry Run, and
-            Test Cases to understand the solution and improve it before submission.
-          </li>
-        </ol>
-      </section>
-
-      <section>
-        <h2 className="text-[30px] font-bold leading-tight text-white">Supported Programming Languages</h2>
-        <p className="mt-4 max-w-[900px] text-[17px] leading-8 text-zinc-300">
-          Start with clean boilerplates for C++, Java, Python, and JavaScript. CodeFlow focuses on
-          language-aware review, dry-run generation, complexity reasoning, and test-case planning rather than raw execution.
-        </p>
-        <div className="mt-5 flex flex-wrap gap-2">
-          {languageTags.map((language) => (
-            <span
-              key={language}
-              className="rounded-full border border-white/[0.16] bg-white/[0.07] px-4 py-1.5 text-sm font-bold text-zinc-100 transition duration-200 hover:-translate-y-1 hover:border-white/35 hover:bg-white/[0.13] hover:shadow-[0_10px_30px_rgba(255,255,255,0.08)]"
-            >
-              {language}
-            </span>
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <h2 className="text-[30px] font-bold leading-tight text-white">What Each Feature Does</h2>
-        <div className="mt-6 grid gap-5 md:grid-cols-2">
-          {featureCards.map((feature) => (
+    <section className="mx-auto mt-20 max-w-[1160px] space-y-20 pb-28">
+      {/* Feature cards */}
+      <div>
+        <div className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-violet-500">Features</div>
+        <h2 className="text-[30px] font-bold text-white">Everything you need to master DSA</h2>
+        <div className="mt-7 grid gap-4 md:grid-cols-2">
+          {featureCards.map((card) => (
             <article
-              key={feature.title}
-              className="min-h-[240px] rounded-[14px] border border-white/[0.12] bg-[#101010] p-6 transition duration-200 ease-out hover:-translate-y-2 hover:scale-[1.015] hover:border-white/30 hover:bg-[#151515] hover:shadow-[0_22px_70px_rgba(0,0,0,0.55)]"
+              key={card.title}
+              className={`group relative overflow-hidden rounded-[16px] border ${card.border} bg-gradient-to-br ${card.color} p-6 transition duration-300 hover:-translate-y-1 hover:shadow-card-hover`}
             >
               <div className="flex items-start justify-between gap-4">
-                <h3 className="text-[21px] font-bold leading-tight text-white">{feature.title}</h3>
-                <span className="rounded-full border border-white/[0.12] bg-white/[0.06] px-3 py-1 text-xs font-semibold text-zinc-300">
-                  {feature.meta}
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">{card.icon}</span>
+                  <h3 className="text-[19px] font-bold text-white">{card.title}</h3>
+                </div>
+                <span className="shrink-0 rounded-full border border-white/[0.12] bg-black/30 px-3 py-1 text-xs font-semibold text-zinc-400">
+                  {card.meta}
                 </span>
               </div>
-              <p className="mt-4 text-[16px] leading-7 text-zinc-300">{feature.body}</p>
+              <p className="mt-4 text-[15px] leading-7 text-zinc-400">{card.body}</p>
             </article>
           ))}
         </div>
-      </section>
+      </div>
 
-      <section>
-        <h2 className="text-[30px] font-bold leading-tight text-white">Why Use CodeFlow</h2>
-        <div className="mt-6 grid gap-5 md:grid-cols-2">
-          {[
-            ["No Setup Required", "Skip local setup. Open the page and start reasoning through a solution in seconds."],
-            ["Mentor-Ready Workspace", "Use Monaco as the coding surface, then let CodeFlow review the solution, explain the approach, and guide your next improvement."],
-            ["DSA-Focused Learning", "Use dry runs, variable watches, complexity graphs, and interview explanations while practicing."],
-            ["Fast Feedback", "See correctness risks, edge cases, dry runs, test cases, and complexity insights in one focused workflow."],
-          ].map(([title, body]) => (
-            <article
-              key={title}
-              className="min-h-[168px] rounded-[14px] border border-white/[0.12] bg-[#101010] p-6 transition duration-200 ease-out hover:-translate-y-2 hover:scale-[1.015] hover:border-white/30 hover:bg-[#151515] hover:shadow-[0_22px_70px_rgba(0,0,0,0.55)]"
-            >
-              <h3 className="text-[21px] font-bold leading-tight text-white">{title}</h3>
-              <p className="mt-4 text-[17px] leading-8 text-zinc-300">{body}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <h2 className="text-[30px] font-bold leading-tight text-white">Popular Language Guides</h2>
-        <div className="mt-6 space-y-6">
-          <Guide title="C++ DSA Code Mentor">
-            Use the C++ boilerplate for competitive programming, STL practice, graph problems,
-            dynamic programming, and interview-style DSA.
-          </Guide>
-          <Guide title="Python DSA Code Mentor">
-            Write quick scripts, solve algorithm problems, and test input parsing without leaving
-            the browser.
-          </Guide>
-          <Guide title="Java DSA Code Mentor">
-            Practice class-based solutions, collections, queues, maps, and common interview
-            templates.
-          </Guide>
-          <Guide title="JavaScript DSA Code Mentor">
-            Review JavaScript snippets, test logic, and practice frontend-friendly problem solving in
-            a compact visual workspace.
-          </Guide>
-        </div>
-      </section>
-
-      <section>
-        <h2 className="text-[30px] font-bold leading-tight text-white">Frequently Asked Questions</h2>
-        <div className="mt-6 divide-y divide-white/[0.08] overflow-hidden rounded-[14px] border border-white/[0.12] bg-[#101010]">
+      {/* FAQ */}
+      <div>
+        <div className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-violet-500">FAQ</div>
+        <h2 className="text-[30px] font-bold text-white">Frequently Asked Questions</h2>
+        <div className="mt-7 divide-y divide-white/[0.06] overflow-hidden rounded-[16px] border border-white/[0.08] bg-editor-800">
           {faqs.map((faq) => (
             <details key={faq.question} className="group">
-              <summary className="cursor-pointer list-none px-5 py-4 text-[15px] font-semibold text-white transition hover:bg-white/[0.04]">
+              <summary className="flex cursor-pointer list-none items-center justify-between px-6 py-4 text-[15px] font-semibold text-zinc-200 transition hover:bg-white/[0.03] hover:text-white">
                 <span>{faq.question}</span>
-                <span className="float-right text-zinc-500 transition group-open:rotate-180">
-                  v
+                <span className="ml-4 shrink-0 text-zinc-600 transition-transform group-open:rotate-180">
+                  ↓
                 </span>
               </summary>
-              <p className="px-5 pb-5 text-[15px] leading-7 text-zinc-300">{faq.answer}</p>
+              <p className="px-6 pb-5 text-[15px] leading-7 text-zinc-400">{faq.answer}</p>
             </details>
           ))}
         </div>
-      </section>
+      </div>
     </section>
-  );
-}
-
-function ContentBlock({
-  eyebrow,
-  title,
-  body,
-}: {
-  eyebrow: string;
-  title: string;
-  body: string;
-}) {
-  return (
-    <section>
-      <p className="text-sm font-bold uppercase tracking-[0.18em] text-signal-blue">{eyebrow}</p>
-      <h2 className="mt-3 text-[32px] font-bold leading-tight text-white">{title}</h2>
-      <p className="mt-4 max-w-[980px] text-[17px] leading-8 text-zinc-300">{body}</p>
-    </section>
-  );
-}
-
-function Guide({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <article className="rounded-[14px] border border-transparent p-1 transition duration-200 hover:-translate-y-1 hover:border-white/[0.12] hover:bg-white/[0.035]">
-      <h3 className="text-xl font-bold text-white">{title}</h3>
-      <p className="mt-2 max-w-[980px] text-[16px] leading-7 text-zinc-300">{children}</p>
-    </article>
   );
 }

@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { analyzeCodeForDryRun } from "@/lib/codeAnalyzer";
 import { askGroqJson } from "@/lib/groq";
 import { dryRunSchemas, enrichDryRunForAlgorithm } from "@/lib/dryRunGenerator";
+import { buildPythonTracerCode } from "@/lib/pythonTracer";
+import { buildCppTracerCode } from "@/lib/cppTracer";
+import { runWithPiston } from "@/lib/pistonClient";
+import { parseExecutionTrace, executionTraceToResult } from "@/lib/executionTrace";
 import type { CodeFlowAnalysisResult } from "@/types/codeflowAnalysis";
+
+/** Languages that support real execution tracing via Piston. */
+const EXECUTION_TRACE_LANGS = new Set(["Python", "C++"]);
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,11 +25,46 @@ export async function POST(request: NextRequest) {
     }
 
     const codeAnalysis = analyzeCodeForDryRun(body.code, body.language ?? "unknown");
-    const schema = dryRunSchemas[codeAnalysis.likelyPattern as keyof typeof dryRunSchemas];
-    const focus = body.focus ?? "full";
-    const prompt = buildAnalysisPrompt(body.language ?? "unknown", body.code, body.stdin ?? "", schema, codeAnalysis, focus);
-    const analysis = await askGroqJson(prompt, focus === "dry-run" ? 2600 : 1800) as CodeFlowAnalysisResult;
-    return NextResponse.json(enrichDryRunForAlgorithm(analysis, body.stdin ?? "", body.code));
+    const focus        = body.focus ?? "full";
+    const language     = body.language ?? "unknown";
+    const stdin        = body.stdin ?? "";
+
+    // ── Execution-trace path (Python, dry-run focus, stdin provided) ─────────
+    if (
+      focus === "dry-run" &&
+      stdin.trim() &&
+      EXECUTION_TRACE_LANGS.has(language)
+    ) {
+      try {
+        const tracerCode  = language === "Python"
+          ? buildPythonTracerCode(body.code, stdin)
+          : buildCppTracerCode(body.code, stdin);
+        const pistonOut   = await runWithPiston(language, tracerCode, stdin);
+        const trace       = parseExecutionTrace(pistonOut.stderr);
+
+        if (trace && trace.steps.length > 1) {
+          // Got a real execution trace — return it directly (no AI needed)
+          const result = executionTraceToResult(
+            trace,
+            body.code,
+            stdin,
+            pistonOut.stdout,
+            codeAnalysis,
+          );
+          return NextResponse.json(result);
+        }
+        // If we get here the trace was empty or too short — fall through to AI
+      } catch {
+        // Piston unavailable, rate-limited, or code errored — fall through
+      }
+    }
+
+    // ── AI dry-run / full-analysis path ──────────────────────────────────────
+    const schema  = dryRunSchemas[codeAnalysis.likelyPattern as keyof typeof dryRunSchemas];
+    const prompt  = buildAnalysisPrompt(language, body.code, stdin, schema, codeAnalysis, focus);
+    const analysis = await askGroqJson(prompt, focus === "dry-run" ? 6000 : 2400) as CodeFlowAnalysisResult;
+    return NextResponse.json(enrichDryRunForAlgorithm(analysis, stdin, body.code));
+
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected analysis error.";
     return NextResponse.json(
@@ -66,11 +108,13 @@ Important rules:
 - Do not rewrite code unless it fixes correctness, clarity, or meaningful performance.
 ${focus === "dry-run" ? `
 Dry-run focused request:
-- Make the dry run complete on this first response. The user should not need to click again to get better detail.
-- Prefer 18-35 rows when input has enough operations. If exact logic is short, still explain every meaningful branch, loop, recursion, queue/stack, distance, pointer, or array update.
+- Make the dry run complete on this first response. The user should not need to click again.
+- Prefer 20-35 rows. Every loop iteration, condition branch, recursive call, push/pop, pointer move, and array update is a separate row.
 - Explanations must be simple, like teaching a beginner: say what changed, why it changed, and what happens next.
-- Keep review, testCases, and improvedCode concise so most tokens go to dryRun.rows, variableWatch, snapshots, and finalOutput.
-- Do not summarize several important loop iterations into one row unless the input is very large.
+- For the generic schema: Code/Operation must be the exact line of code with actual runtime values, e.g. "count += 1 (count was 2)" or "if nums[i] > max_val: (nums[i]=7, max_val=5) → True". Condition Checked must include the substituted values. Variable Changes must list every variable that changed and its new value.
+- DO NOT generate improvedCode, betterApproach, or interviewExplanation — leave them as empty strings to save tokens for rows.
+- Keep bugs, qualitySuggestions, edgeCaseRisks to 1 item each. Keep testCases to exactly 1 sample case.
+- Do not summarize several important loop iterations into one row unless the input is very large (>20 elements).
 ` : `
 Analysis focused request:
 - Keep dryRun concise unless deterministic enrichment can generate exact rows.
@@ -118,7 +162,7 @@ Return JSON with exactly these keys:
     "bugs": ["string"],
     "qualitySuggestions": ["string"],
     "edgeCaseRisks": ["string"],
-    "improvedCode": "string or empty string",
+    "improvedCode": ${focus === "dry-run" ? '""' : '"string or empty string"'},
     "scores": {
       "correctness": 0,
       "readability": 0,
@@ -129,8 +173,8 @@ Return JSON with exactly these keys:
   "analysis": {
     "approach": ["string"],
     "timeComplexity": {
-      "best": "string or empty string",
-      "average": "string or empty string",
+      "best": ${focus === "dry-run" ? '""' : '"string or empty string"'},
+      "average": ${focus === "dry-run" ? '""' : '"string or empty string"'},
       "worst": "string",
       "explanation": "string"
     },
@@ -138,13 +182,13 @@ Return JSON with exactly these keys:
       "value": "string",
       "explanation": "string"
     },
-    "betterApproach": "string",
-    "interviewExplanation": "string"
+    "betterApproach": ${focus === "dry-run" ? '""' : '"string"'},
+    "interviewExplanation": ${focus === "dry-run" ? '""' : '"string"'}
   },
   "dryRun": {
     "input": "string",
     "columns": ${JSON.stringify(schema.columns)},
-    "rows": [{"${schema.columns[0]}": "string"}],
+    "rows": [{"${schema.columns[0]}": "string", "${schema.columns[1] ?? schema.columns[0]}": "string"}],
     "variableWatch": [{"step": 1, "variables": {"name": "value"}}],
     "snapshots": [{"step": 1, "title": "string", "description": "string", "variables": {"name": "value"}}],
     "finalOutput": "string",

@@ -17,6 +17,8 @@ export default function AnalysisTabs() {
   const setStdin = useAlgoStore((state) => state.setStdin);
   const [result, setResult] = useState<CodeFlowAnalysisResult | null>(null);
   const [analysisKey, setAnalysisKey] = useState("");
+  const [dryRunResult, setDryRunResult] = useState<CodeFlowAnalysisResult | null>(null);
+  const [dryRunKey, setDryRunKey] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const currentKey = `${language}\n${stdin}\n${code}`;
@@ -38,8 +40,13 @@ export default function AnalysisTabs() {
         throw new Error(payload.error ?? "Analysis failed.");
       }
 
-      setResult(payload);
-      setAnalysisKey(currentKey);
+      if (focus === "dry-run") {
+        setDryRunResult(payload);
+        setDryRunKey(currentKey);
+      } else {
+        setResult(payload);
+        setAnalysisKey(currentKey);
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Analysis failed.");
     } finally {
@@ -48,20 +55,27 @@ export default function AnalysisTabs() {
   };
 
   return (
-    <div className="min-h-[270px] bg-carbon-900">
-      <div className="analysis-scroll flex gap-1 overflow-x-auto border-b border-white/[0.08] bg-carbon-850 px-3 py-2">
+    <div className="min-h-[270px] bg-editor-800">
+      {/* ── Tab bar ─────────────────────────────────────────── */}
+      <div className="analysis-scroll flex items-end overflow-x-auto border-b border-white/[0.07] bg-editor-900 px-4">
         {tabs.map((tab) => (
           <button
             type="button"
             key={tab}
             onClick={() => setActive(tab)}
-            className={`h-9 whitespace-nowrap rounded-md px-3 text-sm font-semibold transition ${
+            className={`relative flex h-[46px] shrink-0 items-center gap-1.5 px-4 text-[13px] font-semibold transition ${
               active === tab
-                ? "bg-white text-black"
-                : "bg-white/[0.04] text-zinc-400 hover:bg-white/[0.08] hover:text-white"
+                ? "text-white"
+                : "text-zinc-500 hover:text-zinc-300"
             }`}
           >
             {tab}
+            {active === tab && (
+              <span
+                className="absolute bottom-0 left-0 right-0 h-[2px]"
+                style={{ background: "linear-gradient(90deg, transparent, #6366f1, #8b5cf6, transparent)" }}
+              />
+            )}
           </button>
         ))}
         {active === "Analyze" ? (
@@ -69,14 +83,18 @@ export default function AnalysisTabs() {
             type="button"
             onClick={() => void runAnalysis("full")}
             disabled={loading || !code.trim()}
-            className="ml-auto h-9 rounded-md bg-white px-4 text-sm font-bold text-black transition hover:bg-zinc-200 disabled:cursor-wait disabled:bg-zinc-500"
+            className="ml-auto mb-2 h-9 rounded-[9px] px-5 text-[13px] font-bold text-white transition disabled:cursor-wait disabled:opacity-50"
+            style={{
+              background: loading ? "#374151" : "linear-gradient(135deg, #4f46e5, #7c3aed)",
+              boxShadow: loading ? "none" : "0 0 16px rgba(99,102,241,0.3)",
+            }}
           >
             {loading ? "Analyzing..." : "Analyze Code"}
           </button>
         ) : null}
       </div>
 
-      <div className="analysis-scroll max-h-[78vh] min-h-[540px] overflow-auto p-4">
+      <div className="analysis-scroll max-h-[78vh] min-h-[540px] overflow-auto p-4 panel-enter">
         {error ? (
           <p className="mb-4 rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
             {error}
@@ -87,7 +105,8 @@ export default function AnalysisTabs() {
         {active === "Analyze" ? <AnalyzeTab result={visibleResult} /> : null}
         {active === "Dry Run" ? (
           <DryRunTab
-            result={visibleResult}
+            result={dryRunResult}
+            isStale={dryRunKey !== "" && dryRunKey !== currentKey}
             code={code}
             stdin={stdin}
             setStdin={setStdin}
@@ -158,6 +177,7 @@ function AnalyzeTab({ result }: { result: CodeFlowAnalysisResult | null }) {
 
 function DryRunTab({
   result,
+  isStale,
   code,
   stdin,
   setStdin,
@@ -165,6 +185,7 @@ function DryRunTab({
   loading,
 }: {
   result: CodeFlowAnalysisResult | null;
+  isStale: boolean;
   code: string;
   stdin: string;
   setStdin: (value: string) => void;
@@ -177,15 +198,31 @@ function DryRunTab({
   const hiddenRisks = result?.hiddenTestRisks ?? [];
   const [sampleAssumed, setSampleAssumed] = useState(false);
 
+  const isExactTrace = dryRun?.confidence === "Exact execution trace";
+
   return (
     <div className="space-y-4">
+      {/* Execution badge — only shown when Piston actually ran the code */}
+      {isExactTrace && (
+        <div
+          className="flex items-center gap-2.5 rounded-[10px] border border-emerald-500/25 bg-emerald-500/8 px-4 py-2.5 text-sm font-semibold text-emerald-300"
+          style={{ boxShadow: "0 0 20px rgba(52,211,153,0.08)" }}
+        >
+          <span className="h-2 w-2 rounded-full bg-emerald-400" style={{ boxShadow: "0 0 6px #34d399" }} />
+          ⚡ Live Execution Trace — every step is from your code actually running, not AI guessing.
+        </div>
+      )}
+
       <div className="grid gap-3 md:grid-cols-3">
         <InfoCard label="Pattern Detected" value={prettyPattern(detectedPattern)} />
-        <InfoCard label="Dry Run Confidence" value={dryRun?.confidence || "Not generated yet"} />
+        <InfoCard
+          label="Dry Run Confidence"
+          value={dryRun?.confidence || "Not generated yet"}
+        />
         <InfoCard label="Input Used" value={inputUsed.trim() || "Input is required for a reliable dry run."} mono compact />
       </div>
 
-      <div className="rounded-md border border-white/[0.08] bg-[#111] p-4">
+      <div className="rounded-md border border-white/[0.08] bg-editor-850 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-bold uppercase tracking-[0.18em] text-zinc-400">Input</h3>
@@ -238,7 +275,13 @@ function DryRunTab({
         ) : null}
       </div>
 
-      {!result ? <EmptyState text="Paste code and input to generate a step-by-step dry run." /> : null}
+      {!result ? <EmptyState text="Paste code and input, then click Generate Dry Run to see a step-by-step walkthrough." /> : null}
+
+      {isStale ? (
+        <p className="rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm text-yellow-200">
+          Code or input changed since the last dry run. Click <strong>Generate Dry Run</strong> to refresh.
+        </p>
+      ) : null}
 
       {dryRun?.warnings?.length ? (
         <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm text-yellow-100">
@@ -247,7 +290,7 @@ function DryRunTab({
       ) : null}
 
       {dryRun && dryRun.rows.length > 0 ? (
-        <div className="overflow-auto rounded-md border border-white/[0.08] bg-[#111]">
+        <div className="overflow-auto rounded-md border border-white/[0.08] bg-editor-850">
           <table className="w-full min-w-[900px] border-collapse text-left text-sm">
             <thead className="bg-white/[0.04] text-xs uppercase tracking-[0.16em] text-zinc-500">
               <tr>
@@ -305,7 +348,7 @@ function TestCasesTab({ result }: { result: CodeFlowAnalysisResult | null }) {
   return (
     <div className="grid gap-4 xl:grid-cols-2">
       {cases.map((testCase) => (
-        <div key={`${testCase.type}-${testCase.title}`} className="min-w-0 rounded-md border border-white/[0.08] bg-[#111] p-4">
+        <div key={`${testCase.type}-${testCase.title}`} className="min-w-0 rounded-md border border-white/[0.08] bg-editor-850 p-4">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h3 className="text-lg font-bold text-white">{testCase.title}</h3>
             <Chip label={testCase.type} />
@@ -355,7 +398,7 @@ function AnalyzeVerdict({ result }: { result: CodeFlowAnalysisResult }) {
 
 function ApproachReview({ result }: { result: CodeFlowAnalysisResult }) {
   return (
-    <section className="rounded-md border border-white/[0.08] bg-[#111] p-5">
+    <section className="rounded-md border border-white/[0.08] bg-editor-850 p-5">
       <h3 className="mb-4 flex items-center gap-2 text-xl font-bold text-[#8b5cf6]">
         <Lightbulb className="h-5 w-5" />
         Approach
@@ -504,7 +547,7 @@ function ComplexityReasoning({ result }: { result: CodeFlowAnalysisResult }) {
   const causes = inferComplexityCauses(result);
 
   return (
-    <section className="rounded-md border border-white/[0.08] bg-[#111] p-5">
+    <section className="rounded-md border border-white/[0.08] bg-editor-850 p-5">
       <h3 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.16em] text-zinc-400">
         <Lightbulb className="h-4 w-4" />
         How This Complexity Happens
@@ -581,7 +624,7 @@ function DryRunChat({
   };
 
   return (
-    <section className="rounded-md border border-white/[0.08] bg-[#111] p-4">
+    <section className="rounded-md border border-white/[0.08] bg-editor-850 p-4">
       <h3 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.16em] text-zinc-400">
         <MessageSquare className="h-4 w-4" />
         Ask About This Dry Run
@@ -639,7 +682,7 @@ function InfoCard({
   compact?: boolean;
 }) {
   return (
-    <section className={`rounded-md border border-white/[0.08] bg-[#111] ${compact ? "p-3" : "p-4"}`}>
+    <section className={`rounded-md border border-white/[0.08] bg-editor-850 ${compact ? "p-3" : "p-4"}`}>
       <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">{label}</h3>
       <p className={`${compact ? "mt-2 max-h-20 text-xs leading-5" : "mt-3 max-h-36 text-sm leading-6"} overflow-auto text-zinc-200 ${mono ? "whitespace-pre-wrap font-mono" : ""}`}>
         {value}
@@ -656,7 +699,7 @@ function WatchPanel({
   items?: NonNullable<NonNullable<CodeFlowAnalysisResult["dryRun"]>["variableWatch"]>;
 }) {
   return (
-    <section className="rounded-md border border-white/[0.08] bg-[#111] p-4">
+    <section className="rounded-md border border-white/[0.08] bg-editor-850 p-4">
       <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">{title}</h3>
       {items?.length ? (
         <div className="max-h-64 space-y-2 overflow-auto">
@@ -686,7 +729,7 @@ function SnapshotPanel({
   snapshots?: NonNullable<NonNullable<CodeFlowAnalysisResult["dryRun"]>["snapshots"]>;
 }) {
   return (
-    <section className="rounded-md border border-white/[0.08] bg-[#111] p-4">
+    <section className="rounded-md border border-white/[0.08] bg-editor-850 p-4">
       <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">State Snapshots</h3>
       {snapshots?.length ? (
         <div className="max-h-64 space-y-2 overflow-auto">
@@ -706,7 +749,7 @@ function SnapshotPanel({
 
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="rounded-md border border-white/[0.08] bg-[#111] p-4">
+    <section className="rounded-md border border-white/[0.08] bg-editor-850 p-4">
       <h3 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.16em] text-zinc-400">
         {icon}
         {title}
@@ -718,7 +761,7 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
 
 function EmptyState({ text }: { text: string }) {
   return (
-    <div className="rounded-md border border-dashed border-white/[0.12] bg-[#111] p-8 text-center text-sm leading-6 text-zinc-500">
+    <div className="rounded-md border border-dashed border-white/[0.12] bg-editor-850 p-8 text-center text-sm leading-6 text-zinc-500">
       {text}
     </div>
   );
@@ -750,7 +793,7 @@ function ScoreGrid({ scores }: { scores?: NonNullable<CodeFlowAnalysisResult["re
   ] as const;
 
   return (
-    <section className="rounded-md border border-white/[0.08] bg-[#111] p-4">
+    <section className="rounded-md border border-white/[0.08] bg-editor-850 p-4">
       <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-zinc-400">Review Score</h3>
       <div className="grid grid-cols-2 gap-3">
         {items.map(([label, value]) => (
